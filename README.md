@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## ProfitPulse — Shopify public app (Next.js + Prisma)
 
-## Getting Started
+Public Shopify app that syncs store data and will show product profitability. Stack: Next.js App Router, Prisma + Postgres, Tailwind, Shopify OAuth.
 
-First, run the development server:
+### Prerequisites
+- Node + npm
+- Postgres with a database (see `DATABASE_URL` format in `.env`)
+- Shopify Partner app (public) with API key/secret
+- Dev store (e.g., `celaree-test.myshopify.com`)
+- HTTPS tunnel reachable by Shopify (Cloudflare tunnel/ngrok/localtunnel)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Environment
+Create `.env` (not committed):
+```
+DATABASE_URL="postgresql://postgres@localhost:5432/profitpulse?schema=public"
+SHOPIFY_API_KEY="..."
+SHOPIFY_API_SECRET="..."
+SHOPIFY_SCOPES="read_products,read_orders"
+SHOPIFY_APP_URL="https://<your-tunnel-host>"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Shopify CLI / tunnel
+1) Run your tunnel to port 3000 (e.g., `cloudflared tunnel --url http://localhost:3000`) and note the HTTPS host.
+2) Ensure `shopify.app.toml` uses the same host for `application_url` and the redirect.
+3) In the Partner Dashboard, set App URL = `<tunnel-host>` and Redirect URL = `<tunnel-host>/api/auth/shopify/callback`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Prisma
+- Schema defines `Shop`, `Product`, `Order`, `OrderLine`, `AdSpend` with per-shop unique Shopify IDs.
+- Generate client: `npx prisma generate`
+- Create migration (run yourself): `npx prisma migrate dev --name add-shop-and-relations`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Dev server
+```
+npm install
+npm run dev
+```
+Keep this running while the tunnel forwards to `http://localhost:3000`.
 
-## Learn More
+### OAuth flow
+- Install URL: `https://<tunnel-host>/api/auth/shopify/install?shop=<your-dev-store>.myshopify.com`
+- Install route sets a state cookie and redirects to Shopify’s authorize page.
+- Callback: validates state + HMAC, exchanges code for token, upserts `Shop`, then redirects to `/app?shop=...`.
 
-To learn more about Next.js, take a look at the following resources:
+### Available routes
+- `GET /api/auth/shopify/install` — start OAuth (requires `shop` query)
+- `GET /api/auth/shopify/callback` — handles Shopify redirect
+- `GET /api/prisma-test` — sanity check DB counts
+- `GET /app` — placeholder embedded landing showing the `shop` param
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Next steps
+- Add data sync from Shopify (products/orders) into Prisma.
+- Build dashboard/products/cost editor UIs.

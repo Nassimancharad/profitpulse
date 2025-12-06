@@ -1,0 +1,78 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Shop {
+  id          String     @id @default(cuid())
+  shopDomain  String     @unique // e.g. mystore.myshopify.com
+  accessToken String
+  installedAt DateTime
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  products    Product[]
+  orders      Order[]
+  adSpends    AdSpend[]
+}
+
+model Product {
+  id               String      @id @default(cuid())
+  shop             Shop        @relation(fields: [shopId], references: [id])
+  shopId           String
+  shopifyProductId String
+  title            String
+  imageUrl         String?
+  costPerUnit      Float?
+
+  orderLines       OrderLine[]
+
+  @@unique([shopId, shopifyProductId])
+}
+
+model Order {
+  id             String     @id @default(cuid())
+  shop           Shop       @relation(fields: [shopId], references: [id])
+  shopId         String
+  shopifyOrderId String
+  createdAt      DateTime
+  totalPrice     Float
+
+  orderLines     OrderLine[]
+
+  @@unique([shopId, shopifyOrderId])
+}
+
+model OrderLine {
+  id          String   @id @default(cuid())
+  order       Order    @relation(fields: [orderId], references: [id])
+  orderId     String
+
+  product     Product  @relation(fields: [productId], references: [id])
+  productId   String
+
+  quantity    Int
+  lineRevenue Float // price * quantity
+}
+
+model AdSpend {
+  id          String   @id @default(cuid())
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  shopId      String
+
+  date        DateTime
+  campaignId  String?
+  adsetId     String?
+  adId        String?
+
+  amountSpent Float
+}
