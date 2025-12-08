@@ -44,6 +44,7 @@ Keep this running while the tunnel forwards to `http://localhost:3000`.
 ### Available routes
 - `GET /api/auth/shopify/install` — start OAuth (requires `shop` query)
 - `GET /api/auth/shopify/callback` — handles Shopify redirect
+- `GET /api/auth/session` — verifies Shopify session token (Authorization: Bearer <session_token>)
 - `GET /api/prisma-test` — sanity check DB counts
 - `GET /app` — placeholder embedded landing showing the `shop` param
 

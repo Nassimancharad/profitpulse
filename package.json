@@ -11,6 +11,8 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
+    "@shopify/app-bridge": "^3.7.11",
+    "@shopify/app-bridge-utils": "^3.5.1",
     "next": "16.0.7",
     "pg": "^8.16.3",
     "prisma": "^7.1.0",
