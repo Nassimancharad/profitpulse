@@ -47,7 +47,14 @@ Keep this running while the tunnel forwards to `http://localhost:3000`.
 - `GET /api/auth/session` — verifies Shopify session token (Authorization: Bearer <session_token>)
 - `GET /api/prisma-test` — sanity check DB counts
 - `GET /app` — placeholder embedded landing showing the `shop` param
+- UI pages: `/dashboard`, `/products`, `/products/[id]`, `/costs`, `/settings`
 
 ### Next steps
 - Add data sync from Shopify (products/orders) into Prisma.
 - Build dashboard/products/cost editor UIs.
+
+### Frontend UI shell
+- `src/components/AppShell.tsx` provides the responsive layout: desktop/tablet sidebar, mobile hamburger, and bottom nav with a sticky top bar for title/shop/period/actions.
+- Use `AppShell` to wrap pages and pass `title`, optional `subtitle`, `shopLabel`, `periodLabel`, and `actions` (e.g., `SyncNowButton`).
+- Current pages wired: `dashboard`, `costs`, `settings` (products pages will be refactored next).
+- Styling: Tailwind CSS v4 in `globals.css` with a dark palette (`--pp-bg`, `--pp-surface`, `--pp-foreground`); keep new UI consistent with these tokens.
