@@ -132,8 +132,6 @@ export function AppShell({
         onClose={() => setMobileNavOpen(false)}
         activeHref={activeHref}
       />
-
-      <BottomNav activeHref={activeHref} />
     </div>
   );
 }
@@ -194,29 +192,5 @@ function MobileNav({ open, onClose, activeHref }: MobileNavProps) {
         </nav>
       </div>
     </>
-  );
-}
-
-function BottomNav({ activeHref }: { activeHref: string | null }) {
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[var(--pp-bg)]/90 px-4 py-2 backdrop-blur lg:hidden">
-      <div className="grid grid-cols-4 gap-2 text-xs font-semibold text-slate-200">
-        {NAV_ITEMS.map((item) => {
-          const isActive = activeHref === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 transition hover:bg-white/10 ${
-                isActive ? "bg-white/10 text-white" : ""
-              }`}
-            >
-              <span className="text-lg leading-none">{item.icon}</span>
-              <span className="text-[11px]">{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
   );
 }

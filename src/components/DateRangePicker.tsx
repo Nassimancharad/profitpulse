@@ -43,29 +43,34 @@ export function DateRangePicker({ startDate, endDate }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-wrap items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2 text-xs text-slate-100"
+      className="flex flex-wrap items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs text-slate-100 shadow-md shadow-cyan-500/10"
     >
+      <div className="flex items-center gap-2 rounded-lg bg-white/5 px-2 py-1">
+        <span className="text-base">📅</span>
+        <span className="text-[11px] uppercase tracking-[0.2em] text-slate-300">
+          Period
+        </span>
+      </div>
       <label className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-[0.2em] text-slate-300">Start</span>
         <input
           type="date"
           value={start}
           onChange={(e) => setStart(e.target.value)}
-          className="rounded-md border border-white/15 bg-[var(--pp-bg)] px-2 py-1 text-xs text-white"
+          className="rounded-lg border border-white/15 bg-[var(--pp-bg)] px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-300"
         />
       </label>
+      <span className="text-slate-400">—</span>
       <label className="flex items-center gap-2">
-        <span className="text-[11px] uppercase tracking-[0.2em] text-slate-300">End</span>
         <input
           type="date"
           value={end}
           onChange={(e) => setEnd(e.target.value)}
-          className="rounded-md border border-white/15 bg-[var(--pp-bg)] px-2 py-1 text-xs text-white"
+          className="rounded-lg border border-white/15 bg-[var(--pp-bg)] px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-300"
         />
       </label>
       <button
         type="submit"
-        className="rounded-full bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:-translate-y-0.5"
+        className="rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:-translate-y-0.5"
       >
         Apply
       </button>
