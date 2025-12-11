@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/AppShell';
+import { DateRangePicker } from '@/components/DateRangePicker';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import prisma from '@/lib/prisma';
 
@@ -14,7 +15,16 @@ const percentFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
 });
 
-export default async function DashboardPage() {
+const roasFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 2,
+});
+
+type DashboardProps = {
+  searchParams?: { start?: string; end?: string };
+};
+
+export default async function DashboardPage({ searchParams }: DashboardProps) {
   const shop = await prisma.shop.findFirst();
 
   if (!shop) {
@@ -30,15 +40,22 @@ export default async function DashboardPage() {
     );
   }
 
-  const since = new Date();
-  since.setDate(since.getDate() - 30);
+  const today = new Date();
+  const defaultEnd = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  const defaultStart = new Date(defaultEnd);
+  defaultStart.setDate(defaultEnd.getDate() - 29);
+
+  const parsedStart = parseDateParam(searchParams?.start) ?? defaultStart;
+  const parsedEnd = parseDateParam(searchParams?.end) ?? defaultEnd;
+  const startDate = atStartOfDay(parsedStart);
+  const endDate = atEndOfDay(parsedEnd);
 
   const [orderLines, totalOrders] = await Promise.all([
     prisma.orderLine.findMany({
       where: {
         order: {
           shopId: shop.id,
-          createdAt: { gte: since },
+          createdAt: { gte: startDate, lte: endDate },
         },
       },
       include: {
@@ -48,10 +65,17 @@ export default async function DashboardPage() {
     prisma.order.count({
       where: {
         shopId: shop.id,
-        createdAt: { gte: since },
+        createdAt: { gte: startDate, lte: endDate },
       },
     }),
   ]);
+
+  const adSpends = await prisma.adSpend.findMany({
+    where: {
+      shopId: shop.id,
+      date: { gte: startDate, lte: endDate },
+    },
+  });
 
   const totalRevenue = orderLines.reduce((sum, line) => sum + line.lineRevenue, 0);
   const totalUnits = orderLines.reduce((sum, line) => sum + line.quantity, 0);
@@ -61,8 +85,10 @@ export default async function DashboardPage() {
     }
     return sum;
   }, 0);
-  const profit = totalRevenue - totalCost;
+  const totalAdSpend = adSpends.reduce((sum, spend) => sum + spend.amountSpent, 0);
+  const profit = totalRevenue - totalCost - totalAdSpend;
   const profitMargin = totalRevenue > 0 ? profit / totalRevenue : 0;
+  const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : null;
 
   type ProductStats = {
     productId: string;
@@ -72,6 +98,7 @@ export default async function DashboardPage() {
     unitsSold: number;
     cost: number;
     profit: number;
+    roas: number | null;
   };
 
   const productAggregation = new Map<string, ProductStats>();
@@ -92,6 +119,7 @@ export default async function DashboardPage() {
       unitsSold: (existing?.unitsSold ?? 0) + line.quantity,
       cost: (existing?.cost ?? 0) + lineCost,
       profit: (existing?.profit ?? 0) + (line.lineRevenue - lineCost),
+      roas: null,
     };
 
     productAggregation.set(product.id, updated);
@@ -99,17 +127,37 @@ export default async function DashboardPage() {
 
   const topProducts = Array.from(productAggregation.values())
     .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
+    .slice(0, 5)
+    .map((product) => {
+      const allocatedAdSpend =
+        totalRevenue > 0 ? totalAdSpend * (product.revenue / totalRevenue) : 0;
+      const productRoas =
+        allocatedAdSpend > 0 ? product.revenue / allocatedAdSpend : null;
+      const netProfit = product.profit - allocatedAdSpend;
+      return {
+        ...product,
+        profit: netProfit,
+        roas: productRoas,
+      };
+    });
+
+  const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
 
   const actions = (
-    <div className="flex items-center gap-2">
-      <SyncNowButton shopDomain={shop.shopDomain} />
-      <a
-        href={`/app?shop=${encodeURIComponent(shop.shopDomain)}`}
-        className="hidden rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/90 transition hover:border-white/40 hover:text-white sm:inline-flex"
-      >
-        Open embedded
-      </a>
+    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <DateRangePicker
+        startDate={startDate.toISOString().slice(0, 10)}
+        endDate={endDate.toISOString().slice(0, 10)}
+      />
+      <div className="flex items-center gap-2">
+        <SyncNowButton shopDomain={shop.shopDomain} />
+        <a
+          href={`/app?shop=${encodeURIComponent(shop.shopDomain)}`}
+          className="hidden rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/90 transition hover:border-white/40 hover:text-white sm:inline-flex"
+        >
+          Open embedded
+        </a>
+      </div>
     </div>
   );
 
@@ -118,22 +166,31 @@ export default async function DashboardPage() {
       title="Dashboard"
       subtitle="Store pulse"
       shopLabel={shop.shopDomain}
-      periodLabel="Last 30 days"
+      periodLabel={periodLabel}
       actions={actions}
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Revenue" value={currencyFormatter.format(totalRevenue)} hint="Gross over last 30 days" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <StatCard label="Revenue" value={currencyFormatter.format(totalRevenue)} hint="Gross revenue in range" />
         <StatCard label="Orders" value={numberFormatter.format(totalOrders)} hint="All statuses" />
         <StatCard label="Units sold" value={numberFormatter.format(totalUnits)} hint="Total items" />
+        <StatCard label="Cost of goods" value={currencyFormatter.format(totalCost)} hint="Based on cost per unit" />
+        <StatCard label="Ad spend" value={currencyFormatter.format(totalAdSpend)} hint="From connected ads" />
         <StatCard label="Profit" value={currencyFormatter.format(profit)} hint={`Margin ${percentFormatter.format(profitMargin)}`} />
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="ROAS"
+          value={roas ? `${roasFormatter.format(roas)}x` : '—'}
+          hint={roas ? 'Revenue / ad spend' : 'No ad spend in range'}
+        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur lg:col-span-2">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-white">Top products (30 days)</h2>
-              <p className="text-sm text-slate-300">Ranked by revenue</p>
+              <h2 className="text-xl font-semibold text-white">Top 5 products</h2>
+              <p className="text-sm text-slate-300">Ranked by revenue in the selected period</p>
             </div>
             <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-100">
               {topProducts.length} tracked
@@ -148,6 +205,7 @@ export default async function DashboardPage() {
                   <th className="px-4 py-2 font-medium">Units</th>
                   <th className="px-4 py-2 font-medium">Cost</th>
                   <th className="px-4 py-2 font-medium">Profit</th>
+                  <th className="px-4 py-2 font-medium">ROAS</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -180,6 +238,9 @@ export default async function DashboardPage() {
                       <td className="px-4 py-3 text-slate-100">
                         {currencyFormatter.format(product.profit)}
                       </td>
+                      <td className="px-4 py-3 text-slate-100">
+                        {product.roas ? `${roasFormatter.format(product.roas)}x` : '—'}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -193,10 +254,11 @@ export default async function DashboardPage() {
           <div className="mt-4 space-y-4 text-sm text-slate-100">
             <Highlight title="Profit margin" value={percentFormatter.format(profitMargin)} />
             <Highlight title="Cost basis" value={currencyFormatter.format(totalCost)} />
+            <Highlight title="Ad spend" value={currencyFormatter.format(totalAdSpend)} />
             <Highlight title="Average order value" value={totalOrders ? currencyFormatter.format(totalRevenue / totalOrders) : '—'} />
           </div>
           <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-slate-200">
-            Metrics reflect the last 30 days from Shopify. Use Sync now to refresh after new orders.
+            Metrics reflect the selected period. Use Sync now after ads or product changes to refresh results.
           </div>
         </div>
       </div>
@@ -244,4 +306,26 @@ function Highlight({ title, value }: { title: string; value: string }) {
       <div className="mt-1 text-lg font-semibold text-white">{value}</div>
     </div>
   );
+}
+
+function parseDateParam(value?: string) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function atStartOfDay(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function atEndOfDay(date: Date) {
+  const copy = new Date(date);
+  copy.setHours(23, 59, 59, 999);
+  return copy;
+}
+
+function formatShortDate(date: Date) {
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
