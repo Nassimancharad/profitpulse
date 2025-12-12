@@ -23,6 +23,7 @@ model Shop {
   products    Product[]
   orders      Order[]
   adSpends    AdSpend[]
+  metaAdAccounts MetaAdAccount[]
 }
 
 model Product {
@@ -68,6 +69,7 @@ model AdSpend {
   id          String   @id @default(cuid())
   shop        Shop     @relation(fields: [shopId], references: [id])
   shopId      String
+  adAccountId String
 
   date        DateTime
   campaignId  String?
@@ -75,4 +77,19 @@ model AdSpend {
   adId        String?
 
   amountSpent Float
+
+  @@index([shopId, adAccountId, date])
+}
+
+model MetaAdAccount {
+  id          String   @id @default(cuid())
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  shopId      String
+  adAccountId String
+  name        String?
+  accessToken String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, adAccountId])
 }

@@ -1,0 +1,94 @@
+const META_API_VERSION = "v21.0";
+const META_OAUTH_DIALOG = `https://www.facebook.com/${META_API_VERSION}/dialog/oauth`;
+const META_GRAPH_API = `https://graph.facebook.com/${META_API_VERSION}`;
+
+type MetaEnv = {
+  appId: string;
+  appSecret: string;
+  redirectUri: string;
+};
+
+export function getMetaEnv(): MetaEnv {
+  const { META_APP_ID, META_APP_SECRET, META_REDIRECT_URI } = process.env;
+  const missing = [];
+  if (!META_APP_ID) missing.push("META_APP_ID");
+  if (!META_APP_SECRET) missing.push("META_APP_SECRET");
+  if (!META_REDIRECT_URI) missing.push("META_REDIRECT_URI");
+  if (missing.length) {
+    throw new Error(`Missing Meta env vars: ${missing.join(", ")}`);
+  }
+  return { appId: META_APP_ID, appSecret: META_APP_SECRET, redirectUri: META_REDIRECT_URI };
+}
+
+export function buildMetaAuthUrl(state: string, scope = "ads_read"): string {
+  const env = getMetaEnv();
+  const url = new URL(META_OAUTH_DIALOG);
+  url.searchParams.set("client_id", env.appId);
+  url.searchParams.set("redirect_uri", env.redirectUri);
+  url.searchParams.set("state", state);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", scope);
+  return url.toString();
+}
+
+export async function exchangeCodeForShortLivedToken(code: string): Promise<string> {
+  const env = getMetaEnv();
+  const url = new URL(`${META_GRAPH_API}/oauth/access_token`);
+  url.searchParams.set("client_id", env.appId);
+  url.searchParams.set("client_secret", env.appSecret);
+  url.searchParams.set("redirect_uri", env.redirectUri);
+  url.searchParams.set("code", code);
+
+  const res = await fetch(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Meta token exchange failed (${res.status}): ${body}`);
+  }
+
+  const json = (await res.json()) as { access_token?: string };
+  if (!json.access_token) {
+    throw new Error("Meta token exchange response missing access_token");
+  }
+  return json.access_token;
+}
+
+export async function exchangeForLongLivedToken(shortLivedToken: string): Promise<string> {
+  const env = getMetaEnv();
+  const url = new URL(`${META_GRAPH_API}/oauth/access_token`);
+  url.searchParams.set("grant_type", "fb_exchange_token");
+  url.searchParams.set("client_id", env.appId);
+  url.searchParams.set("client_secret", env.appSecret);
+  url.searchParams.set("fb_exchange_token", shortLivedToken);
+
+  const res = await fetch(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Meta long-lived exchange failed (${res.status}): ${body}`);
+  }
+
+  const json = (await res.json()) as { access_token?: string };
+  if (!json.access_token) {
+    throw new Error("Meta long-lived exchange response missing access_token");
+  }
+  return json.access_token;
+}
+
+export type MetaAdAccount = {
+  id: string;
+  name?: string | null;
+};
+
+export async function fetchMetaAdAccounts(accessToken: string): Promise<MetaAdAccount[]> {
+  const url = new URL(`${META_GRAPH_API}/me/adaccounts`);
+  url.searchParams.set("access_token", accessToken);
+  url.searchParams.set("fields", "id,name");
+
+  const res = await fetch(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Meta ad accounts fetch failed (${res.status}): ${body}`);
+  }
+
+  const json = (await res.json()) as { data?: MetaAdAccount[] };
+  return json.data ?? [];
+}
