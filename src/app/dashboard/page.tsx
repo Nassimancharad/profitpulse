@@ -2,6 +2,7 @@ import { AppShell } from '@/components/AppShell';
 import { DateRangePicker } from '@/components/DateRangePicker';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import prisma from '@/lib/prisma';
+import { getAdSpendPerProduct } from '@/lib/adAttribution';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -50,7 +51,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const startDate = atStartOfDay(parsedStart);
   const endDate = atEndOfDay(parsedEnd);
 
-  const [orderLines, totalOrders] = await Promise.all([
+  const [orderLines, totalOrders, adSpends, productAdSpends] = await Promise.all([
     prisma.orderLine.findMany({
       where: {
         order: {
@@ -68,14 +69,14 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         createdAt: { gte: startDate, lte: endDate },
       },
     }),
+    prisma.adSpend.findMany({
+      where: {
+        shopId: shop.id,
+        date: { gte: startDate, lte: endDate },
+      },
+    }),
+    getAdSpendPerProduct(shop.id, startDate, endDate),
   ]);
-
-  const adSpends = await prisma.adSpend.findMany({
-    where: {
-      shopId: shop.id,
-      date: { gte: startDate, lte: endDate },
-    },
-  });
 
   const totalRevenue = orderLines.reduce((sum, line) => sum + line.lineRevenue, 0);
   const totalUnits = orderLines.reduce((sum, line) => sum + line.quantity, 0);
@@ -125,21 +126,24 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     productAggregation.set(product.id, updated);
   }
 
+  const productSpendMap = new Map<string, number>();
+  for (const spend of productAdSpends) {
+    productSpendMap.set(spend.productId, spend.totalAdSpend);
+  }
+
   const topProducts = Array.from(productAggregation.values())
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5)
     .map((product) => {
-      const allocatedAdSpend =
-        totalRevenue > 0 ? totalAdSpend * (product.revenue / totalRevenue) : 0;
-      const productRoas =
-        allocatedAdSpend > 0 ? product.revenue / allocatedAdSpend : null;
+      const allocatedAdSpend = productSpendMap.get(product.productId) ?? 0;
+      const productRoas = allocatedAdSpend > 0 ? product.revenue / allocatedAdSpend : null;
       const netProfit = product.profit - allocatedAdSpend;
       return {
         ...product,
         profit: netProfit,
         roas: productRoas,
       };
-    });
+    })
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
 
   const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
 

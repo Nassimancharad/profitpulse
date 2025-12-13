@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing code" }, { status: 400 });
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const expectedState = cookieStore.get(STATE_COOKIE)?.value;
   const shopDomain = cookieStore.get(SHOP_COOKIE)?.value ?? url.searchParams.get("shop");
 

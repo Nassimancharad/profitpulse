@@ -92,3 +92,51 @@ export async function fetchMetaAdAccounts(accessToken: string): Promise<MetaAdAc
   const json = (await res.json()) as { data?: MetaAdAccount[] };
   return json.data ?? [];
 }
+
+export type MetaInsight = {
+  date: string; // ISO date string for the day (date_start)
+  spend: number;
+  campaignId?: string | null;
+  adsetId?: string | null;
+  adId?: string | null;
+};
+
+/**
+ * Fetches daily spend for an ad account within the given date range.
+ * Uses time_increment=1 to return 1 row per day.
+ */
+export async function fetchMetaDailySpend(
+  adAccountId: string,
+  accessToken: string,
+  startDate: Date,
+  endDate: Date,
+): Promise<MetaInsight[]> {
+  const url = new URL(`${META_GRAPH_API}/${encodeURIComponent(adAccountId)}/insights`);
+  url.searchParams.set("access_token", accessToken);
+  url.searchParams.set("time_increment", "1");
+  url.searchParams.set("fields", "spend,campaign_id,adset_id,ad_id,date_start,date_stop");
+  url.searchParams.set(
+    "time_range",
+    JSON.stringify({
+      since: startDate.toISOString().slice(0, 10),
+      until: endDate.toISOString().slice(0, 10),
+    }),
+  );
+
+  const res = await fetch(url.toString(), { method: "GET" });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Meta insights fetch failed (${res.status}): ${body}`);
+  }
+
+  const json = (await res.json()) as { data?: Record<string, string>[] };
+  const rows = json.data ?? [];
+
+  return rows.map((row) => ({
+    date: row.date_start,
+    spend: Number(row.spend ?? 0),
+    campaignId: row.campaign_id ?? null,
+    adsetId: row.adset_id ?? null,
+    adId: row.ad_id ?? null,
+  }));
+}

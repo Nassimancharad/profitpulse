@@ -46,8 +46,18 @@ Keep this running while the tunnel forwards to `http://localhost:3000`.
 - `GET /api/auth/shopify/callback` — handles Shopify redirect
 - `GET /api/auth/session` — verifies Shopify session token (Authorization: Bearer <session_token>)
 - `GET /api/prisma-test` — sanity check DB counts
+- `GET /api/auth/meta/install` — start Meta OAuth (requires `shop` query, sets state cookie)
+- `GET /api/auth/meta/callback` — handles Meta redirect, exchanges token, saves ad accounts
+- `POST /api/meta/sync` — fetches Meta insights and stores `AdSpend` (query/body `shop`, optional `start`/`end`)
 - `GET /app` — placeholder embedded landing showing the `shop` param
 - UI pages: `/dashboard`, `/products`, `/products/[id]`, `/costs`, `/settings`
+
+### Meta Ads integration
+- Env vars: `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI=https://<tunnel-host>/api/auth/meta/callback`.
+- Meta app settings: add `<tunnel-host>` to App Domains and the exact redirect URI to Valid OAuth Redirect URIs; enable Client/Web OAuth Login.
+- OAuth: start at `/api/auth/meta/install?shop=<store>.myshopify.com`, approve in Meta, callback stores accessible ad accounts into `MetaAdAccount` with the token.
+- Sync: `POST /api/meta/sync?shop=<store>.myshopify.com` (defaults to last 2 years). Optionally pass JSON body `{ "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" }`. It deletes + reinserts `AdSpend` for the range per ad account.
+- Per-product ad spend: `getAdSpendPerProduct(shopId, start, end)` allocates spend proportionally by revenue for now; dashboard uses this for ROAS/profit.
 
 ### Next steps
 - Add data sync from Shopify (products/orders) into Prisma.
