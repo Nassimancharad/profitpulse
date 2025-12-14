@@ -2,19 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { PageTopBar } from "./PageTopBar";
 
 type NavItem = {
   href: string;
   label: string;
-  icon: string;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "📊" },
-  { href: "/products", label: "Products", icon: "🛍️" },
-  { href: "/costs", label: "Costs", icon: "💸" },
-  { href: "/settings", label: "Settings", icon: "⚙️" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/products", label: "Products" },
+  { href: "/settings", label: "Settings" },
 ];
 
 type AppShellProps = {
@@ -22,8 +22,23 @@ type AppShellProps = {
   subtitle?: string;
   periodLabel?: string;
   shopLabel?: string;
-  actions?: React.ReactNode;
-  children: React.ReactNode;
+  /**
+   * Primary control displayed on the right side (e.g. date range picker).
+   */
+  timeControl?: ReactNode;
+  /**
+   * Secondary actions such as sync or links.
+   */
+  secondaryActions?: ReactNode;
+  /**
+   * Backward-compatibility slot; will render in the secondary area if provided.
+   */
+  actions?: ReactNode;
+  /**
+   * Overflow menu / tertiary actions.
+   */
+  overflowActions?: ReactNode;
+  children: ReactNode;
 };
 
 export function AppShell({
@@ -31,7 +46,10 @@ export function AppShell({
   subtitle,
   periodLabel = "Last 30 days",
   shopLabel = "Demo shop",
+  timeControl,
+  secondaryActions,
   actions,
+  overflowActions,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -65,7 +83,6 @@ export function AppShell({
                     isActive ? "bg-white/10 text-white" : "text-slate-200"
                   }`}
                 >
-                  <span className="text-lg">{item.icon}</span>
                   <span>{item.label}</span>
                 </Link>
               );
@@ -74,8 +91,8 @@ export function AppShell({
         </aside>
 
         <div className="flex min-h-screen flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-white/10 bg-[var(--pp-bg)]/80 backdrop-blur">
-            <div className="flex items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <header className="sticky top-0 z-30 bg-[var(--pp-bg)]/85 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.6)] backdrop-blur">
+            <div className="flex items-center gap-3 px-4 py-6 sm:px-6 sm:py-6 lg:px-8">
               <button
                 type="button"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-lg text-white transition hover:border-white/30 lg:hidden"
@@ -84,37 +101,15 @@ export function AppShell({
               >
                 ☰
               </button>
-              <div className="flex flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-cyan-200/80">
-                    ProfitPulse
-                  </p>
-                  <div className="flex items-center gap-2 text-white">
-                    <span className="text-xl font-semibold leading-tight">
-                      {title}
-                    </span>
-                    {subtitle ? (
-                      <span className="text-sm text-slate-300">· {subtitle}</span>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <span className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-100">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                    {shopLabel}
-                  </span>
-                  <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-100">
-                    {periodLabel}
-                  </span>
-                  {actions}
-                  <button
-                    type="button"
-                    className="hidden h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-sm font-semibold text-slate-100 transition hover:border-white/30 sm:inline-flex"
-                    aria-label="User settings"
-                  >
-                    ⚙️
-                  </button>
-                </div>
+              <div className="flex-1">
+                <PageTopBar
+                  title={title}
+                  subtitle={subtitle}
+                  timeControl={timeControl}
+                  periodLabel={periodLabel}
+                  secondaryActions={secondaryActions ?? actions}
+                  overflowActions={overflowActions}
+                />
               </div>
             </div>
           </header>
@@ -184,7 +179,6 @@ function MobileNav({ open, onClose, activeHref }: MobileNavProps) {
                 }`}
                 onClick={onClose}
               >
-                <span className="text-lg">{item.icon}</span>
                 <span>{item.label}</span>
               </Link>
             );

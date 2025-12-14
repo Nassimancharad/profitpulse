@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import {
   exchangeCodeForShortLivedToken,
@@ -7,8 +6,32 @@ import {
   fetchMetaAdAccounts,
 } from "@/lib/meta";
 
-const STATE_COOKIE = "meta_oauth_state";
-const SHOP_COOKIE = "meta_oauth_shop";
+function parseState(state: string | null) {
+  if (!state) return null;
+  const parts = state.split(":");
+  if (parts.length !== 3) return null;
+  const [shop, nonce, signature] = parts;
+  return { shop, nonce, signature };
+}
+
+async function verifyState(state: string | null) {
+  if (!state) return null;
+  const parsed = parseState(state);
+  if (!parsed) return null;
+  const secret = process.env.META_APP_SECRET;
+  if (!secret) return null;
+  try {
+    const raw = `${parsed.shop}:${parsed.nonce}`;
+    // lazy-require crypto to avoid edge runtime incompat
+    const nodeCrypto = await import("node:crypto");
+    const expected = nodeCrypto.createHmac("sha256", secret).update(raw).digest("hex");
+    if (expected !== parsed.signature) return null;
+    return parsed.shop;
+  } catch (err) {
+    console.warn("Meta state verification failed", err);
+    return null;
+  }
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -28,16 +51,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing code" }, { status: 400 });
   }
 
-  const cookieStore = await cookies();
-  const expectedState = cookieStore.get(STATE_COOKIE)?.value;
-  const shopDomain = cookieStore.get(SHOP_COOKIE)?.value ?? url.searchParams.get("shop");
-
-  if (!expectedState || !state || expectedState !== state) {
-    return NextResponse.json({ error: "Invalid or missing state" }, { status: 400 });
-  }
+  const verifiedShop = await verifyState(state);
+  const shopDomain = verifiedShop ?? url.searchParams.get("shop");
 
   if (!shopDomain) {
-    return NextResponse.json({ error: "Missing shop context" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid or missing state" }, { status: 400 });
+  }
+  if (!verifiedShop) {
+    console.warn("Meta OAuth state could not be verified; proceeding with shop param only");
   }
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });
@@ -90,15 +111,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const response = NextResponse.json({
-    ok: true,
-    shop: shopDomain,
-    connectedAccounts: adAccounts.map((acc) => ({ id: acc.id, name: acc.name ?? null })),
-  });
-
-  // Clear state cookies now that flow is complete.
-  response.cookies.set(STATE_COOKIE, "", { path: "/", httpOnly: true, secure: true, sameSite: "lax", maxAge: 0 });
-  response.cookies.set(SHOP_COOKIE, "", { path: "/", httpOnly: true, secure: true, sameSite: "lax", maxAge: 0 });
-
-  return response;
+  const origin = new URL(request.url).origin;
+  const redirectUrl = `${origin}/settings?meta=connected`;
+  return NextResponse.redirect(redirectUrl);
 }

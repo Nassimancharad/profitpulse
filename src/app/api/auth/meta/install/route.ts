@@ -1,9 +1,6 @@
-import crypto from "node:crypto";
 import { NextResponse } from "next/server";
+import crypto from "node:crypto";
 import { buildMetaAuthUrl } from "@/lib/meta";
-
-const STATE_COOKIE = "meta_oauth_state";
-const SHOP_COOKIE = "meta_oauth_shop";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -13,7 +10,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing shop query parameter" }, { status: 400 });
   }
 
-  const state = crypto.randomBytes(16).toString("hex");
+  const secret = process.env.META_APP_SECRET;
+  if (!secret) {
+    return NextResponse.json({ error: "Missing META_APP_SECRET" }, { status: 500 });
+  }
+
+  const nonce = crypto.randomBytes(16).toString("hex");
+  const raw = `${shop}:${nonce}`;
+  const signature = crypto.createHmac("sha256", secret).update(raw).digest("hex");
+  const state = `${shop}:${nonce}:${signature}`;
 
   let authUrl: string;
   try {
@@ -23,21 +28,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  const response = NextResponse.redirect(authUrl);
-  response.cookies.set(STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 600, // 10 minutes
-  });
-  response.cookies.set(SHOP_COOKIE, shop, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 600,
-  });
-
-  return response;
+  return NextResponse.redirect(authUrl);
 }

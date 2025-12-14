@@ -1,6 +1,6 @@
 import { AppShell } from '@/components/AppShell';
-import { DateRangePicker } from '@/components/DateRangePicker';
-import { SyncNowButton } from '@/components/SyncNowButton';
+import { TimeRangeSelector } from '@/components/TimeRangeSelector';
+import { OverflowMenu } from '@/components/OverflowMenu';
 import prisma from '@/lib/prisma';
 import { getAdSpendPerProduct } from '@/lib/adAttribution';
 
@@ -147,46 +147,35 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
   const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
 
-  const actions = (
-    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
-      <DateRangePicker
-        startDate={startDate.toISOString().slice(0, 10)}
-        endDate={endDate.toISOString().slice(0, 10)}
-      />
-      <div className="flex items-center gap-2">
-        <SyncNowButton shopDomain={shop.shopDomain} />
-        <a
-          href={`/app?shop=${encodeURIComponent(shop.shopDomain)}`}
-          className="hidden rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/90 transition hover:border-white/40 hover:text-white sm:inline-flex"
-        >
-          Open embedded
-        </a>
-      </div>
-    </div>
+  const timeControl = (
+    <TimeRangeSelector
+      startDate={startDate.toISOString().slice(0, 10)}
+      endDate={endDate.toISOString().slice(0, 10)}
+    />
+  );
+
+  const overflowActions = (
+    <OverflowMenu
+      shopDomain={shop.shopDomain}
+      embeddedHref={`/app?shop=${encodeURIComponent(shop.shopDomain)}`}
+      connectionsHref="/settings"
+    />
   );
 
   return (
     <AppShell
       title="Dashboard"
-      subtitle="Store pulse"
       shopLabel={shop.shopDomain}
       periodLabel={periodLabel}
-      actions={actions}
+      timeControl={timeControl}
+      overflowActions={overflowActions}
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Revenue" value={currencyFormatter.format(totalRevenue)} hint="Gross revenue in range" />
         <StatCard label="Orders" value={numberFormatter.format(totalOrders)} hint="All statuses" />
-        <StatCard label="Units sold" value={numberFormatter.format(totalUnits)} hint="Total items" />
         <StatCard label="Cost of goods" value={currencyFormatter.format(totalCost)} hint="Based on cost per unit" />
         <StatCard label="Ad spend" value={currencyFormatter.format(totalAdSpend)} hint="From connected ads" />
         <StatCard label="Profit" value={currencyFormatter.format(profit)} hint={`Margin ${percentFormatter.format(profitMargin)}`} />
-      </div>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="ROAS"
-          value={roas ? `${roasFormatter.format(roas)}x` : '—'}
-          hint={roas ? 'Revenue / ad spend' : 'No ad spend in range'}
-        />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -253,7 +242,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-white/10 to-white/5 p-6 backdrop-blur">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
           <h3 className="text-lg font-semibold text-white">Highlights</h3>
           <div className="mt-4 space-y-4 text-sm text-slate-100">
             <Highlight title="Profit margin" value={percentFormatter.format(profitMargin)} />
@@ -264,18 +253,18 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           <div className="mt-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-slate-200">
             Metrics reflect the selected period. Use Sync now after ads or product changes to refresh results.
           </div>
+          </div>
         </div>
-      </div>
     </AppShell>
   );
 }
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
-      <div className="text-xs uppercase tracking-[0.2em] text-cyan-200/80">{label}</div>
-      <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
-      {hint ? <div className="mt-1 text-sm text-slate-200/80">{hint}</div> : null}
+    <div className="flex min-h-[190px] flex-col justify-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-cyan-200/80">{label}</div>
+      <div className="text-3xl font-semibold text-white">{value}</div>
+      {hint ? <div className="text-sm text-slate-200/80">{hint}</div> : null}
     </div>
   );
 }

@@ -24,6 +24,8 @@ model Shop {
   orders      Order[]
   adSpends    AdSpend[]
   metaAdAccounts MetaAdAccount[]
+  campaignProducts CampaignProduct[]
+  metaCampaigns MetaCampaign[]
 }
 
 model Product {
@@ -36,6 +38,7 @@ model Product {
   costPerUnit      Float?
 
   orderLines       OrderLine[]
+  campaignProducts CampaignProduct[]
 
   @@unique([shopId, shopifyProductId])
 }
@@ -81,6 +84,19 @@ model AdSpend {
   @@index([shopId, adAccountId, date])
 }
 
+model CampaignProduct {
+  id         String   @id @default(cuid())
+  shop       Shop     @relation(fields: [shopId], references: [id])
+  shopId     String
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  campaignId String
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, campaignId])
+  @@index([shopId, campaignId])
+}
+
 model MetaAdAccount {
   id          String   @id @default(cuid())
   shop        Shop     @relation(fields: [shopId], references: [id])
@@ -92,4 +108,18 @@ model MetaAdAccount {
   updatedAt   DateTime @updatedAt
 
   @@unique([shopId, adAccountId])
+}
+
+model MetaCampaign {
+  id          String   @id @default(cuid())
+  shop        Shop     @relation(fields: [shopId], references: [id])
+  shopId      String
+  adAccountId String
+  campaignId  String
+  name        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([shopId, campaignId])
+  @@index([shopId, adAccountId])
 }

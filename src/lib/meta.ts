@@ -140,3 +140,41 @@ export async function fetchMetaDailySpend(
     adId: row.ad_id ?? null,
   }));
 }
+
+export type MetaCampaign = {
+  id: string;
+  name?: string | null;
+  objective?: string | null;
+};
+
+/**
+  * Fetch campaign metadata (id, name) for an ad account.
+  * Paginates through all campaigns.
+  */
+export async function fetchMetaCampaigns(
+  adAccountId: string,
+  accessToken: string,
+): Promise<MetaCampaign[]> {
+  const results: MetaCampaign[] = [];
+  let nextUrl: string | null = `${META_GRAPH_API}/${encodeURIComponent(
+    adAccountId,
+  )}/campaigns?fields=id,name,objective&access_token=${encodeURIComponent(accessToken)}&limit=200`;
+
+  while (nextUrl) {
+    const res = await fetch(nextUrl, { method: "GET" });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Meta campaigns fetch failed (${res.status}): ${body}`);
+    }
+    const json = (await res.json()) as {
+      data?: MetaCampaign[];
+      paging?: { next?: string };
+    };
+    if (json.data?.length) {
+      results.push(...json.data);
+    }
+    nextUrl = json.paging?.next ?? null;
+  }
+
+  return results;
+}
