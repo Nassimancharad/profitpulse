@@ -36,6 +36,26 @@ function clampRange(start: Date, end: Date, min: Date, max: Date) {
   return clampedStart <= clampedEnd ? { start: clampedStart, end: clampedEnd } : null;
 }
 
+function splitRangeByMonth(start: Date, end: Date) {
+  const segments: Array<{ start: Date; end: Date }> = [];
+  let cursor = new Date(start);
+
+  while (cursor <= end) {
+    const segmentStart = new Date(cursor);
+    const segmentEnd = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 23, 59, 59, 999);
+    if (segmentEnd > end) {
+      segmentEnd.setTime(end.getTime());
+    }
+    segments.push({ start: segmentStart, end: segmentEnd });
+
+    cursor = new Date(segmentEnd);
+    cursor.setDate(cursor.getDate() + 1);
+    cursor.setHours(0, 0, 0, 0);
+  }
+
+  return segments;
+}
+
 export function allocateMonthlyExpenses(
   expenses: ExpenseInput[],
   rangeStart: Date,
@@ -52,14 +72,18 @@ export function allocateMonthlyExpenses(
     const overlap = clampRange(expenseStart, expenseEnd, rangeStartDay, rangeEndDay);
     if (!overlap) continue;
 
-    const totalDaysInMonth = new Date(
-      overlap.start.getFullYear(),
-      overlap.start.getMonth() + 1,
-      0,
-    ).getDate();
-    const overlapDays = daysBetweenInclusive(overlap.start, overlap.end);
-    const dailyRate = expense.amount / totalDaysInMonth;
-    const allocated = dailyRate * overlapDays;
+    let allocated = 0;
+    const segments = splitRangeByMonth(overlap.start, overlap.end);
+    for (const segment of segments) {
+      const totalDaysInMonth = new Date(
+        segment.start.getFullYear(),
+        segment.start.getMonth() + 1,
+        0,
+      ).getDate();
+      const overlapDays = daysBetweenInclusive(segment.start, segment.end);
+      const dailyRate = expense.amount / totalDaysInMonth;
+      allocated += dailyRate * overlapDays;
+    }
 
     const key = expense.shopId ?? 'portfolio';
     allocations.set(key, (allocations.get(key) ?? 0) + allocated);

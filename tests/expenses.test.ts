@@ -52,6 +52,26 @@ test('allocateMonthlyExpenses keeps portfolio expenses separate', () => {
   assert.ok(Math.abs((store?.allocatedAmount ?? 0) - 20) < 1e-8);
 });
 
+test('allocateMonthlyExpenses prorates across month boundaries', () => {
+  const allocations = allocateMonthlyExpenses(
+    [
+      {
+        shopId: 'shop-3',
+        amount: 310,
+        frequency: 'monthly',
+        startDate: new Date('2025-01-15T00:00:00.000Z'),
+        endDate: new Date('2025-02-15T23:59:59.999Z'),
+      },
+    ],
+    new Date('2025-01-15T00:00:00.000Z'),
+    new Date('2025-02-15T23:59:59.999Z'),
+  );
+
+  const allocation = allocations.find((row) => row.shopId === 'shop-3');
+  assert.ok(allocation);
+  assert.ok(Math.abs((allocation?.allocatedAmount ?? 0) - 310) < 1e-8);
+});
+
 test('getTotalExpensesForView splits portfolio expense by net revenue', () => {
   const allocations = [
     { shopId: null, allocatedAmount: 100 },
