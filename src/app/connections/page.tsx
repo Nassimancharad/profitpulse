@@ -70,7 +70,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
 
   const selectedDomain = resolvedSearchParams?.shop ?? null;
   const selectedShop = selectedDomain
-    ? shops.find((candidate) => candidate.shopDomain === selectedDomain) ?? null
+    ? shops.find((candidate: { shopDomain: string }) => candidate.shopDomain === selectedDomain) ?? null
     : null;
   const activeShop = selectedShop ?? (shops.length === 1 ? shops[0] : null);
 
