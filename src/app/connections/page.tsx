@@ -212,7 +212,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
 
           <div className="mt-4 space-y-2">
             {shop.metaAdAccounts.length ? (
-              shop.metaAdAccounts.map((account) => (
+              shop.metaAdAccounts.map((account: { id: string; adAccountId: string }) => (
                 <div
                   key={account.id}
                   className="flex flex-col gap-1 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-sm text-[color:var(--pp-foreground)]"
