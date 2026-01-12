@@ -84,7 +84,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
               Pick one store to connect Shopify or Meta data sources.
             </p>
             <div className="mt-4 space-y-2">
-              {shops.map((shopItem) => (
+              {shops.map((shopItem: { id: string; shopDomain: string }) => (
                 <a
                   key={shopItem.id}
                 href={`/connections?shop=${encodeURIComponent(shopItem.shopDomain)}`}
