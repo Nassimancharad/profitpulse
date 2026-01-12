@@ -51,7 +51,7 @@ export function SyncNowButton({ shopDomain, size = "md" }: Props) {
       type="button"
       onClick={handleClick}
       disabled={status === "loading"}
-      className={`inline-flex items-center gap-2 rounded-xl border border-white/12 bg-white/6 ${padding} text-sm font-semibold text-white transition hover:border-white/25 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-70`}
+      className={`pp-btn pp-btn-secondary glass-inset w-full sm:w-auto ${padding} text-sm`}
     >
       <span aria-hidden>
         <svg
@@ -60,7 +60,7 @@ export function SyncNowButton({ shopDomain, size = "md" }: Props) {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
-          className="h-4.5 w-4.5 text-slate-100"
+          className="h-4.5 w-4.5 text-[color:var(--pp-foreground)]"
         >
           <path d="M4 12a8 8 0 0 1 8-8" />
           <path d="M20 12a8 8 0 0 1-8 8" />

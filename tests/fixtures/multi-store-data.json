@@ -1,0 +1,18 @@
+{
+  "shops": [
+    { "id": "shop_a", "shopDomain": "alpha.myshopify.com" },
+    { "id": "shop_b", "shopDomain": "bravo.myshopify.com" }
+  ],
+  "adAccounts": [
+    { "shopId": "shop_a", "adAccountId": "acc_1" },
+    { "shopId": "shop_b", "adAccountId": "acc_1" }
+  ],
+  "adSpends": [
+    { "shopId": "shop_a", "adAccountId": "acc_1", "date": "2025-01-10T00:00:00.000Z", "amountSpent": 100 },
+    { "shopId": "shop_b", "adAccountId": "acc_1", "date": "2025-01-10T00:00:00.000Z", "amountSpent": 100 }
+  ],
+  "revenues": [
+    { "shopId": "shop_a", "date": "2025-01-10T12:00:00.000Z", "netRevenue": 300 },
+    { "shopId": "shop_b", "date": "2025-01-10T15:00:00.000Z", "netRevenue": 100 }
+  ]
+}

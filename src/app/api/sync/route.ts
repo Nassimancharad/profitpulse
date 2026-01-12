@@ -100,6 +100,58 @@ export async function POST(request: Request) {
   for (const order of orders) {
     const createdAt = new Date(order.created_at);
     const totalPrice = Number(order.total_price ?? 0);
+    const shippingFromSet = Number(order.total_shipping_price_set?.shop_money?.amount ?? 0);
+    const shippingRevenue = Number.isFinite(shippingFromSet) && shippingFromSet > 0
+      ? shippingFromSet
+      : Array.isArray(order.shipping_lines)
+        ? order.shipping_lines.reduce((sum, line) => {
+            const value = Number(line?.price ?? 0);
+            return sum + (Number.isFinite(value) ? value : 0);
+          }, 0)
+        : 0;
+    const shippingCountryCodeRaw =
+      order.shipping_address?.country_code ?? order.shipping_address?.country ?? null;
+    const shippingCountryCode =
+      shippingCountryCodeRaw ? String(shippingCountryCodeRaw).toUpperCase() : null;
+    const refunds = Array.isArray(order.refunds) ? order.refunds : [];
+    let refundedProductAmount = 0;
+    let refundedShippingAmount = 0;
+
+    for (const refund of refunds) {
+      const lineItems = Array.isArray(refund.refund_line_items)
+        ? refund.refund_line_items
+        : [];
+      for (const item of lineItems) {
+        const subtotal = Number(item?.subtotal ?? item?.total ?? 0);
+        if (Number.isFinite(subtotal) && subtotal > 0) {
+          refundedProductAmount += subtotal;
+          continue;
+        }
+        const quantity = item?.quantity ?? item?.line_item?.quantity ?? 0;
+        const price = Number(item?.line_item?.price ?? 0);
+        if (Number.isFinite(price) && Number.isFinite(quantity)) {
+          refundedProductAmount += price * quantity;
+        }
+      }
+
+      const adjustments = Array.isArray(refund.order_adjustments)
+        ? refund.order_adjustments
+        : [];
+      for (const adjustment of adjustments) {
+        if (adjustment?.kind !== "shipping_refund") continue;
+        const amount = Number(adjustment?.amount ?? 0);
+        if (Number.isFinite(amount) && amount > 0) {
+          refundedShippingAmount += amount;
+        }
+      }
+    }
+
+    if (!Number.isFinite(refundedProductAmount)) {
+      refundedProductAmount = 0;
+    }
+    if (!Number.isFinite(refundedShippingAmount)) {
+      refundedShippingAmount = 0;
+    }
 
     const orderRecord = await prisma.order.upsert({
       where: {
@@ -111,12 +163,20 @@ export async function POST(request: Request) {
       update: {
         createdAt,
         totalPrice,
+        shippingRevenue,
+        shippingCountryCode,
+        refundedProductAmount,
+        refundedShippingAmount,
       },
       create: {
         shopId: shopRecord.id,
         shopifyOrderId: String(order.id),
         createdAt,
         totalPrice,
+        shippingRevenue,
+        shippingCountryCode,
+        refundedProductAmount,
+        refundedShippingAmount,
       },
       select: { id: true },
     });

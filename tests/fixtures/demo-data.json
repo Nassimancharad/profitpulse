@@ -1,0 +1,164 @@
+{
+  "shop": {
+    "id": "shop_demo_1",
+    "shopDomain": "demo-store.myshopify.com",
+    "installedAt": "2025-01-01T00:00:00.000Z"
+  },
+  "products": [
+    {
+      "id": "prod_1",
+      "shopId": "shop_demo_1",
+      "shopifyProductId": "111",
+      "title": "Aura Bottle",
+      "imageUrl": null,
+      "costPerUnit": 10
+    },
+    {
+      "id": "prod_2",
+      "shopId": "shop_demo_1",
+      "shopifyProductId": "222",
+      "title": "Nimbus Dock",
+      "imageUrl": null,
+      "costPerUnit": 6
+    },
+    {
+      "id": "prod_3",
+      "shopId": "shop_demo_1",
+      "shopifyProductId": "333",
+      "title": "Pulse Sticker",
+      "imageUrl": null,
+      "costPerUnit": null
+    }
+  ],
+  "orders": [
+    {
+      "id": "order_1",
+      "shopId": "shop_demo_1",
+      "shopifyOrderId": "1001",
+      "createdAt": "2025-01-10T12:00:00.000Z",
+      "totalPrice": 55,
+      "shippingRevenue": 5,
+      "shippingCost": null,
+      "shippingCountryCode": "US",
+      "refundedProductAmount": 10,
+      "refundedShippingAmount": 0
+    },
+    {
+      "id": "order_3",
+      "shopId": "shop_demo_1",
+      "shopifyOrderId": "1003",
+      "createdAt": "2025-01-10T16:30:00.000Z",
+      "totalPrice": 50,
+      "shippingRevenue": 10,
+      "shippingCost": null,
+      "shippingCountryCode": "US",
+      "refundedProductAmount": 0,
+      "refundedShippingAmount": 10
+    },
+    {
+      "id": "order_2",
+      "shopId": "shop_demo_1",
+      "shopifyOrderId": "1002",
+      "createdAt": "2025-01-11T12:00:00.000Z",
+      "totalPrice": 45,
+      "shippingRevenue": 0,
+      "shippingCost": null,
+      "shippingCountryCode": "NL",
+      "refundedProductAmount": 0,
+      "refundedShippingAmount": 0
+    }
+  ],
+  "orderLines": [
+    {
+      "id": "line_1",
+      "orderId": "order_1",
+      "productId": "prod_1",
+      "quantity": 2,
+      "lineRevenue": 30
+    },
+    {
+      "id": "line_2",
+      "orderId": "order_1",
+      "productId": "prod_2",
+      "quantity": 1,
+      "lineRevenue": 20
+    },
+    {
+      "id": "line_5",
+      "orderId": "order_3",
+      "productId": "prod_2",
+      "quantity": 2,
+      "lineRevenue": 40
+    },
+    {
+      "id": "line_3",
+      "orderId": "order_2",
+      "productId": "prod_1",
+      "quantity": 1,
+      "lineRevenue": 15
+    },
+    {
+      "id": "line_4",
+      "orderId": "order_2",
+      "productId": "prod_3",
+      "quantity": 1,
+      "lineRevenue": 5
+    }
+  ],
+  "adSpends": [
+    {
+      "id": "ad_1",
+      "shopId": "shop_demo_1",
+      "adAccountId": "acc_1",
+      "date": "2025-01-10T00:00:00.000Z",
+      "campaignId": null,
+      "amountSpent": 21
+    },
+    {
+      "id": "ad_2",
+      "shopId": "shop_demo_1",
+      "adAccountId": "acc_1",
+      "date": "2025-01-11T00:00:00.000Z",
+      "campaignId": null,
+      "amountSpent": 7.5
+    }
+  ],
+  "shippingCostRules": [
+    {
+      "id": "rule_1",
+      "shopId": "shop_demo_1",
+      "countryCode": "US",
+      "minOrderValue": 0,
+      "maxOrderValue": 60,
+      "costAmount": 4
+    },
+    {
+      "id": "rule_2",
+      "shopId": "shop_demo_1",
+      "countryCode": null,
+      "minOrderValue": null,
+      "maxOrderValue": null,
+      "costAmount": 6
+    }
+  ],
+  "expenses": [
+    {
+      "id": "exp_1",
+      "shopId": "shop_demo_1",
+      "name": "Apps bundle",
+      "amount": 50,
+      "frequency": "monthly",
+      "startDate": "2025-01-01T00:00:00.000Z",
+      "endDate": null
+    },
+    {
+      "id": "exp_2",
+      "shopId": null,
+      "name": "Agency retainer",
+      "amount": 100,
+      "frequency": "monthly",
+      "startDate": "2025-01-01T00:00:00.000Z",
+      "endDate": null
+    }
+  ]
+}

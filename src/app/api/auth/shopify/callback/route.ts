@@ -10,10 +10,11 @@ function getEnv() {
   if (missing.length) {
     throw new Error(`Missing required env vars: ${missing.join(", ")}`);
   }
+  const normalize = (url: string) => url.replace(/\/+$/, "");
   return {
     apiKey: process.env.SHOPIFY_API_KEY!,
     apiSecret: process.env.SHOPIFY_API_SECRET!,
-    appUrl: process.env.SHOPIFY_APP_URL!,
+    appUrl: normalize(process.env.SHOPIFY_APP_URL!),
   };
 }
 
@@ -145,6 +146,6 @@ export async function GET(request: Request) {
     },
   });
 
-  const redirectUrl = `${env.appUrl}/app?shop=${encodeURIComponent(shop)}`;
+  const redirectUrl = `${env.appUrl}/dashboard?shop=${encodeURIComponent(shop)}`;
   return NextResponse.redirect(redirectUrl);
 }

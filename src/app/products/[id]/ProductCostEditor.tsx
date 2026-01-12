@@ -33,10 +33,10 @@ export function ProductCostEditor({ productId, initialCost, shopDomain }: Props)
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+    <div className="pp-card glass-surface flex flex-col gap-3 p-5">
       <div>
-        <h3 className="text-lg font-semibold text-white">Cost per unit</h3>
-        <p className="text-sm text-slate-300">Keep this updated to improve profit accuracy.</p>
+        <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Cost per unit</h3>
+        <p className="text-sm text-[color:var(--pp-muted)]">Keep this updated to improve profit accuracy.</p>
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <input
@@ -46,14 +46,14 @@ export function ProductCostEditor({ productId, initialCost, shopDomain }: Props)
           inputMode="decimal"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="w-full max-w-xs rounded-lg border border-white/15 bg-[var(--pp-bg)] px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-200 focus:ring-2 focus:ring-cyan-200/30"
+          className="pp-input w-full max-w-xs"
           placeholder="0.00"
         />
         <button
           type="button"
           onClick={handleSave}
           disabled={status === "saving"}
-          className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/25 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-70"
+          className="pp-btn pp-btn-primary px-4 py-2 text-sm"
         >
           {status === "saving" && "Saving..."}
           {status === "saved" && "Saved"}
@@ -62,7 +62,7 @@ export function ProductCostEditor({ productId, initialCost, shopDomain }: Props)
         </button>
       </div>
       {status === "error" ? (
-        <div className="text-sm text-amber-200">Enter a valid non-negative number and try again.</div>
+        <div className="text-sm text-orange-700">Enter a valid non-negative number and try again.</div>
       ) : null}
     </div>
   );

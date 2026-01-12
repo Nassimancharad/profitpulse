@@ -30,7 +30,7 @@ export function OverflowMenu({ shopDomain }: OverflowMenuProps) {
       type="button"
       onClick={handleSync}
       aria-label="Refresh data"
-      className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-3 text-white transition hover:border-white/20 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+      className="pp-btn pp-btn-secondary glass-inset h-10 w-full justify-center gap-2 px-3 text-sm sm:w-auto"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -42,32 +42,32 @@ export function OverflowMenu({ shopDomain }: OverflowMenuProps) {
       >
         <path
           d="M21 6v5h-5"
-          stroke="white"
+          stroke="currentColor"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
         <path
           d="M20 11a8 8 0 0 0-14.5-4.5"
-          stroke="white"
+          stroke="currentColor"
           strokeWidth="2.5"
           strokeLinecap="round"
         />
         <path
           d="M3 18v-5h5"
-          stroke="white"
+          stroke="currentColor"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
         <path
           d="M4 13a8 8 0 0 0 14.5 4.5"
-          stroke="white"
+          stroke="currentColor"
           strokeWidth="2.5"
           strokeLinecap="round"
         />
       </svg>
-      <span className="text-xs font-semibold uppercase tracking-wide text-white/80">
+      <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--pp-muted)]">
         {status === "loading" ? "Syncing" : status === "done" ? "Synced" : "Sync"}
       </span>
     </button>

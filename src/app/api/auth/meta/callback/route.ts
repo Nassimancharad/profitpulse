@@ -112,6 +112,10 @@ export async function GET(request: Request) {
   }
 
   const origin = new URL(request.url).origin;
-  const redirectUrl = `${origin}/settings?meta=connected`;
+  // Prefer configured app URL to avoid stale localhost/tunnel redirects.
+  const appBase =
+    process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") ||
+    origin;
+  const redirectUrl = `${appBase}/connections?meta=connected`;
   return NextResponse.redirect(redirectUrl);
 }

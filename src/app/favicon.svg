@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="pulse-core" x1="120" y1="150" x2="420" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFB36B" />
+      <stop offset="0.35" stop-color="#FF8A3A" />
+      <stop offset="0.7" stop-color="#F27A28" />
+      <stop offset="1" stop-color="#D85E1A" />
+    </linearGradient>
+    <filter id="pulse-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur" />
+      <feColorMatrix
+        in="blur"
+        type="matrix"
+        values="1 0 0 0 0.98 0 1 0 0 0.42 0 0 1 0 0.08 0 0 0 0.55 0"
+      />
+    </filter>
+  </defs>
+  <path
+    d="M84 312c56-88 98 52 160-16 46-52 62-104 118-52 30 28 42 64 66 52"
+    stroke="url(#pulse-core)"
+    stroke-width="64"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    filter="url(#pulse-glow)"
+  />
+  <path
+    d="M84 312c56-88 98 52 160-16 46-52 62-104 118-52 30 28 42 64 66 52"
+    stroke="url(#pulse-core)"
+    stroke-width="40"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

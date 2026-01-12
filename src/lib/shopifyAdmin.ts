@@ -17,11 +17,43 @@ type ShopifyOrderLineItem = {
   price: string; // stringified decimal
 };
 
+type ShopifyRefundLineItem = {
+  line_item?: ShopifyOrderLineItem | null;
+  quantity?: number | null;
+  subtotal?: string | null;
+  total?: string | null;
+};
+
+type ShopifyOrderAdjustment = {
+  kind?: string | null;
+  amount?: string | null;
+};
+
+type ShopifyRefund = {
+  refund_line_items?: ShopifyRefundLineItem[] | null;
+  order_adjustments?: ShopifyOrderAdjustment[] | null;
+};
+
 type ShopifyOrder = {
   id: number;
   created_at: string;
   total_price: string;
+  shipping_lines?: { price?: string | null }[] | null;
+  total_shipping_price_set?: {
+    shop_money?: { amount?: string | null } | null;
+  } | null;
+  shipping_address?: { country_code?: string | null; country?: string | null } | null;
+  refunds?: ShopifyRefund[] | null;
   line_items: ShopifyOrderLineItem[];
+};
+
+type ShopifyPaymentTransaction = {
+  id: number;
+  type?: string | null;
+  source_id?: number | null;
+  fee?: string | null;
+  amount?: string | null;
+  created_at?: string | null;
 };
 
 function shopifyBaseUrl(shopDomain: string) {
@@ -66,7 +98,10 @@ async function shopifyGet<T>(
   params?: FetchParams,
 ): Promise<{ data: T; linkHeader: string | null }> {
   const relativePath = buildUrl(path, params);
-  const res = await fetch(`${shopifyBaseUrl(shopDomain)}${relativePath}`, {
+  const baseUrl = path.startsWith("/shopify_payments")
+    ? `https://${shopDomain}/admin`
+    : shopifyBaseUrl(shopDomain);
+  const res = await fetch(`${baseUrl}${relativePath}`, {
     headers: {
       "X-Shopify-Access-Token": accessToken,
       "Content-Type": "application/json",
@@ -137,10 +172,27 @@ export async function fetchShopifyOrders(
     {
       limit: 250,
       status: "any",
-      fields: "id,created_at,total_price,line_items",
+      fields: "id,created_at,total_price,shipping_lines,total_shipping_price_set,shipping_address,refunds,line_items",
       ...(createdAtMinIso ? { created_at_min: createdAtMinIso } : {}),
     },
   );
 }
 
-export type { ShopifyOrder, ShopifyOrderLineItem, ShopifyProduct };
+export async function fetchShopifyPaymentTransactions(
+  shopDomain: string,
+  accessToken: string,
+  createdAtMinIso?: string,
+): Promise<ShopifyPaymentTransaction[]> {
+  return fetchPaginated<ShopifyPaymentTransaction>(
+    shopDomain,
+    accessToken,
+    "/shopify_payments/balance/transactions.json",
+    (data) => data.transactions ?? [],
+    {
+      limit: 250,
+      ...(createdAtMinIso ? { created_at_min: createdAtMinIso } : {}),
+    },
+  );
+}
+
+export type { ShopifyOrder, ShopifyOrderLineItem, ShopifyProduct, ShopifyPaymentTransaction };

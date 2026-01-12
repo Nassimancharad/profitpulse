@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "shippingCost" DOUBLE PRECISION,
+ADD COLUMN     "shippingRevenue" DOUBLE PRECISION NOT NULL DEFAULT 0;
