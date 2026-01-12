@@ -214,8 +214,13 @@ export async function POST(request: Request) {
         });
 
         productId = fallbackProduct.id;
-        productIdMap.set(shopifyProductId, productId);
       }
+
+      if (!productId) {
+        continue;
+      }
+
+      productIdMap.set(shopifyProductId, productId);
 
       const lineRevenue = Number(line.price ?? 0) * (line.quantity ?? 0);
 
