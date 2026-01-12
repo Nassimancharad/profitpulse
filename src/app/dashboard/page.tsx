@@ -338,7 +338,6 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
       label: "Net revenue (after fees)",
       value:
         totalRevenue -
-        refundedProductAmount -
         totalPaymentFees -
         (shippingTotals.shippingCost ?? 0),
       hint: "After payment fees & shipping costs",
