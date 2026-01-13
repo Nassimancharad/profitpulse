@@ -188,7 +188,12 @@ export async function POST(request: Request) {
     // Clear previous lines to avoid duplicates then insert fresh.
     await prisma.orderLine.deleteMany({ where: { orderId: orderRecord.id } });
 
-    const lineCreates = [];
+    const lineCreates: Array<{
+      orderId: string;
+      productId: string;
+      quantity: number;
+      lineRevenue: number;
+    }> = [];
 
     for (const line of order.line_items ?? []) {
       if (!line.product_id) {

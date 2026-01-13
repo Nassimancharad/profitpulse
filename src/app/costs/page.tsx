@@ -11,9 +11,21 @@ type CostsPageProps = {
   searchParams?: Promise<{ shop?: string; payments?: string }>;
 };
 
+type ShopRef = {
+  id: string;
+  shopDomain: string;
+};
+
+type ExpenseRecord = {
+  id: string;
+  name: string;
+  amount: number;
+  shopId: string | null;
+};
+
 export default async function CostsPage({ searchParams }: CostsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const shops = await prisma.shop.findMany({
+  const shops: ShopRef[] = await prisma.shop.findMany({
     select: { id: true, shopDomain: true },
     orderBy: { installedAt: 'desc' },
   });
@@ -78,7 +90,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
     );
   }
 
-  const expenses = (prisma as any).expense?.findMany
+  const expenses: ExpenseRecord[] = (prisma as any).expense?.findMany
     ? await (prisma as any).expense.findMany({
         where: {
           OR: [{ shopId: shop.id }, { shopId: null }],

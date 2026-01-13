@@ -130,7 +130,7 @@ async function fetchPaginated<TItem>(
   shopDomain: string,
   accessToken: string,
   path: string,
-  extractItems: (data: unknown) => TItem[],
+  extractItems: (data: any) => TItem[],
   params?: FetchParams,
   options: FetchOptions = {},
 ): Promise<TItem[]> {

@@ -13,12 +13,19 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 });
 
 type ProductsPageProps = {
-  searchParams?: Promise<{ start?: string; end?: string }>;
+  searchParams?: Promise<{ start?: string; end?: string; shop?: string; q?: string }>;
+};
+
+type ShopOverview = {
+  id: string;
+  shopDomain: string;
+  paymentFeePct?: number | null;
+  paymentFeeFixed?: number | null;
 };
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const shops = await (async () => {
+  const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({
         select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true },

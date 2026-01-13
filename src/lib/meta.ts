@@ -16,14 +16,18 @@ type MetaEnv = {
 
 export function getMetaEnv(): MetaEnv {
   const { META_APP_ID, META_APP_SECRET, META_REDIRECT_URI } = process.env;
-  const missing = [];
+  const missing: string[] = [];
   if (!META_APP_ID) missing.push("META_APP_ID");
   if (!META_APP_SECRET) missing.push("META_APP_SECRET");
   if (!META_REDIRECT_URI) missing.push("META_REDIRECT_URI");
   if (missing.length) {
     throw new Error(`Missing Meta env vars: ${missing.join(", ")}`);
   }
-  return { appId: META_APP_ID, appSecret: META_APP_SECRET, redirectUri: META_REDIRECT_URI };
+  return {
+    appId: META_APP_ID!,
+    appSecret: META_APP_SECRET!,
+    redirectUri: META_REDIRECT_URI!,
+  };
 }
 
 export function buildMetaAuthUrl(state: string, scope = "ads_read"): string {

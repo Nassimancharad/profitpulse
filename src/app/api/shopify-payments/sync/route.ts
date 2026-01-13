@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { fetchShopifyPaymentTransactions } from "@/lib/shopifyAdmin";
+import { fetchShopifyPaymentTransactions, type ShopifyPaymentTransaction } from "@/lib/shopifyAdmin";
 
 type SyncResult = {
   shopDomain: string;
@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   const startDate = atStartOfDay(parsedStart);
   const endDate = atEndOfDay(parsedEnd);
 
-  let transactions = [];
+  let transactions: ShopifyPaymentTransaction[] = [];
   try {
     transactions = await fetchShopifyPaymentTransactions(
       shop.shopDomain,

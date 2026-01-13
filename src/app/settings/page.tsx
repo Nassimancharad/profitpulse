@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/AppShell';
 import { OverflowMenu } from '@/components/OverflowMenu';
+import { ShopConnectForm } from '@/components/ShopConnectForm';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { formatShopLabel } from '@/lib/shopLabel';
