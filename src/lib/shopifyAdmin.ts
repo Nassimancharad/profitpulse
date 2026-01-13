@@ -1,6 +1,10 @@
 const API_VERSION = "2025-01";
 
 type FetchParams = Record<string, string | number | undefined | null>;
+type FetchOptions = {
+  timeoutMs?: number;
+  maxPages?: number;
+};
 
 type ShopifyProduct = {
   id: number;
@@ -96,17 +100,22 @@ async function shopifyGet<T>(
   accessToken: string,
   path: string,
   params?: FetchParams,
+  options: FetchOptions = {},
 ): Promise<{ data: T; linkHeader: string | null }> {
   const relativePath = buildUrl(path, params);
   const baseUrl = path.startsWith("/shopify_payments")
     ? `https://${shopDomain}/admin`
     : shopifyBaseUrl(shopDomain);
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const res = await fetch(`${baseUrl}${relativePath}`, {
     headers: {
       "X-Shopify-Access-Token": accessToken,
       "Content-Type": "application/json",
     },
-  });
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeoutId));
 
   if (!res.ok) {
     const body = await res.text();
@@ -121,11 +130,13 @@ async function fetchPaginated<TItem>(
   shopDomain: string,
   accessToken: string,
   path: string,
-  extractItems: (data: unknown) => TItem[],
+  extractItems: (data: any) => TItem[],
   params?: FetchParams,
+  options: FetchOptions = {},
 ): Promise<TItem[]> {
   const items: TItem[] = [];
   let pageInfo: string | null = null;
+  let pageCount = 0;
 
   do {
     const pageParams = { ...params, ...(pageInfo ? { page_info: pageInfo } : {}) };
@@ -134,10 +145,15 @@ async function fetchPaginated<TItem>(
       accessToken,
       path,
       pageParams,
+      options,
     );
     const pageItems = extractItems(data);
     items.push(...pageItems);
     pageInfo = parseNextPageInfo(linkHeader);
+    pageCount += 1;
+    if (options.maxPages && pageCount >= options.maxPages) {
+      break;
+    }
   } while (pageInfo);
 
   return items;
@@ -146,6 +162,7 @@ async function fetchPaginated<TItem>(
 export async function fetchShopifyProducts(
   shopDomain: string,
   accessToken: string,
+  options?: FetchOptions,
 ): Promise<ShopifyProduct[]> {
   return fetchPaginated<ShopifyProduct>(
     shopDomain,
@@ -156,6 +173,7 @@ export async function fetchShopifyProducts(
       limit: 250,
       fields: "id,title,images,image",
     },
+    options,
   );
 }
 
@@ -163,6 +181,7 @@ export async function fetchShopifyOrders(
   shopDomain: string,
   accessToken: string,
   createdAtMinIso?: string,
+  options?: FetchOptions,
 ): Promise<ShopifyOrder[]> {
   return fetchPaginated<ShopifyOrder>(
     shopDomain,
@@ -175,6 +194,7 @@ export async function fetchShopifyOrders(
       fields: "id,created_at,total_price,shipping_lines,total_shipping_price_set,shipping_address,refunds,line_items",
       ...(createdAtMinIso ? { created_at_min: createdAtMinIso } : {}),
     },
+    options,
   );
 }
 
@@ -182,6 +202,7 @@ export async function fetchShopifyPaymentTransactions(
   shopDomain: string,
   accessToken: string,
   createdAtMinIso?: string,
+  options?: FetchOptions,
 ): Promise<ShopifyPaymentTransaction[]> {
   return fetchPaginated<ShopifyPaymentTransaction>(
     shopDomain,
@@ -192,6 +213,7 @@ export async function fetchShopifyPaymentTransactions(
       limit: 250,
       ...(createdAtMinIso ? { created_at_min: createdAtMinIso } : {}),
     },
+    options,
   );
 }
 

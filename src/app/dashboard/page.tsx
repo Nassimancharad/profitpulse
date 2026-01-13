@@ -5,7 +5,7 @@ import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { KpiTwoPanelChart } from '@/components/KpiTwoPanelChart';
 import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
-import { calculateProfitTotals } from '@/lib/profit';
+import { calculateProfitTotals, type AdSpendInput } from '@/lib/profit';
 import { calculateShippingTotals } from '@/lib/shippingCost';
 import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from '@/lib/portfolioAdSpend';
 import { calculatePaymentFee } from '@/lib/paymentFees';
@@ -31,9 +31,16 @@ type DashboardProps = {
   searchParams?: Promise<{ start?: string; end?: string; shop?: string }>;
 };
 
+type ShopOverview = {
+  id: string;
+  shopDomain: string;
+  paymentFeePct?: number | null;
+  paymentFeeFixed?: number | null;
+};
+
 export default async function DashboardPage({ searchParams }: DashboardProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const shops = await (async () => {
+  const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({
         select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true },
@@ -118,8 +125,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
             shopId: activeShop.id,
             date: { gte: startDate, lte: endDate },
           },
+          select: { amountSpent: true },
         })
-      : Promise.resolve([]),
+      : Promise.resolve<AdSpendInput[]>([]),
     (async () => {
       try {
         return await prisma.order.findMany({
@@ -271,7 +279,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   if (shippingTotals.warnings.length > 0) {
     console.warn(`[shipping] ${shippingTotals.warnings.join(' ')}`);
   }
-  let allocatedAdSpends = adSpends;
+  let allocatedAdSpends: AdSpendInput[] = adSpends;
   let allocationMap: Map<string, number> | null = null;
   if (useAllocatedAdSpend) {
     allocationMap = new Map<string, number>();
@@ -414,8 +422,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               shopId: activeShop.id,
               date: { gte: previousStart, lte: previousEnd },
             },
+            select: { amountSpent: true },
           })
-        : Promise.resolve([]),
+        : Promise.resolve<AdSpendInput[]>([]),
       useAllocatedAdSpend
         ? getAllocatedAdSpendByShopByDate(shopIds, previousStart, previousEnd)
         : Promise.resolve([]),

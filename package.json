@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "DATABASE_URL=${DATABASE_URL:-postgresql://postgres@localhost:5432/postgres?schema=public} prisma generate && DATABASE_URL=${DATABASE_URL:-postgresql://postgres@localhost:5432/postgres?schema=public} NEXT_FONT_GOOGLE_SKIP_DOWNLOAD=1 next build",
     "start": "next start",
     "lint": "eslint",
     "test": "node --loader tsx --test"

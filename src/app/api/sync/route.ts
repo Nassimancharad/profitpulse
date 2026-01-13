@@ -24,6 +24,9 @@ function pickPrimaryImage(product: ShopifyProduct) {
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const queryShop = url.searchParams.get("shop");
+  const maxPagesParam = url.searchParams.get("maxPages");
+  const maxPages = maxPagesParam ? Number.parseInt(maxPagesParam, 10) : null;
+  const pageLimit = maxPages && Number.isFinite(maxPages) && maxPages > 0 ? maxPages : undefined;
 
   let bodyShop: string | null = null;
   try {
@@ -56,9 +59,10 @@ export async function POST(request: Request) {
   let orders: ShopifyOrder[] = [];
 
   try {
+    const options = pageLimit ? { maxPages: pageLimit } : undefined;
     [products, orders] = await Promise.all([
-      fetchShopifyProducts(shopRecord.shopDomain, shopRecord.accessToken),
-      fetchShopifyOrders(shopRecord.shopDomain, shopRecord.accessToken, createdAtMinIso),
+      fetchShopifyProducts(shopRecord.shopDomain, shopRecord.accessToken, options),
+      fetchShopifyOrders(shopRecord.shopDomain, shopRecord.accessToken, createdAtMinIso, options),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch from Shopify";
@@ -184,7 +188,12 @@ export async function POST(request: Request) {
     // Clear previous lines to avoid duplicates then insert fresh.
     await prisma.orderLine.deleteMany({ where: { orderId: orderRecord.id } });
 
-    const lineCreates = [];
+    const lineCreates: Array<{
+      orderId: string;
+      productId: string;
+      quantity: number;
+      lineRevenue: number;
+    }> = [];
 
     for (const line of order.line_items ?? []) {
       if (!line.product_id) {
