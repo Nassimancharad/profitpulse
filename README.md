@@ -29,6 +29,16 @@ SHOPIFY_APP_URL="https://<your-tunnel-host>"
 - Generate client: `npx prisma generate`
 - Create migration (run yourself): `npx prisma migrate dev --name add-shop-and-relations`
 
+### Vercel + Supabase deployment notes
+- Vercel build command: `npm run build` (Next.js App Router).
+- Recommended Node.js version: 20.x.
+- Use a pooled Supabase connection string for `DATABASE_URL` to avoid exhausting serverless connections.
+- Deploy migrations in CI/CD or Vercel deploy step: `npx prisma migrate deploy`.
+- Ensure the following env vars are set in Vercel: `DATABASE_URL`, `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`,
+  `SHOPIFY_SCOPES`, `SHOPIFY_APP_URL`, `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`.
+- For large syncs, chunk requests: `/api/sync` and `/api/shopify-payments/sync` accept `maxPages`, and
+  `/api/meta/sync` enforces a 90-day max range per request.
+
 ### Dev server
 ```
 npm install

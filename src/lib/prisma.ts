@@ -4,8 +4,12 @@ import { Pool } from "pg";
 
 // Reuse a single PrismaClient instance across hot reloads in Next.js.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error("Missing required env var: DATABASE_URL");
+}
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: databaseUrl,
 });
 
 const client =

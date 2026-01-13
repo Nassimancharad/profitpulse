@@ -32,6 +32,9 @@ export async function POST(request: Request) {
   const queryShop = url.searchParams.get("shop");
   const startParam = url.searchParams.get("start");
   const endParam = url.searchParams.get("end");
+  const maxPagesParam = url.searchParams.get("maxPages");
+  const maxPages = maxPagesParam ? Number.parseInt(maxPagesParam, 10) : null;
+  const pageLimit = maxPages && Number.isFinite(maxPages) && maxPages > 0 ? maxPages : undefined;
 
   let bodyShop: string | null = null;
   let bodyStart: string | null = null;
@@ -80,6 +83,7 @@ export async function POST(request: Request) {
       shop.shopDomain,
       shop.accessToken,
       startDate.toISOString(),
+      pageLimit ? { maxPages: pageLimit } : undefined,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch Shopify Payments transactions";

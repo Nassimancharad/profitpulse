@@ -47,6 +47,10 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const shopDomain = await parseShop(request);
+  const url = new URL(request.url);
+  const maxPagesParam = url.searchParams.get("maxPages");
+  const maxPages = maxPagesParam ? Number.parseInt(maxPagesParam, 10) : null;
+  const pageLimit = maxPages && Number.isFinite(maxPages) && maxPages > 0 ? maxPages : undefined;
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop (?shop=...)" }, { status: 400 });
   }
@@ -67,7 +71,11 @@ export async function POST(request: Request) {
   const upserts: CampaignRow[] = [];
 
   for (const account of shop.metaAdAccounts) {
-    const campaigns = await fetchMetaCampaigns(account.adAccountId, account.accessToken);
+    const campaigns = await fetchMetaCampaigns(
+      account.adAccountId,
+      account.accessToken,
+      pageLimit ? { maxPages: pageLimit } : undefined,
+    );
     for (const c of campaigns) {
       if (!c.id) continue;
       upserts.push({

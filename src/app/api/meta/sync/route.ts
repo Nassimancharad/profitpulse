@@ -27,6 +27,13 @@ function atEndOfDay(date: Date) {
   return d;
 }
 
+function countRangeDays(startDate: Date, endDate: Date) {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  const diff = endDate.getTime() - startDate.getTime();
+  if (diff < 0) return 0;
+  return Math.floor(diff / msPerDay) + 1;
+}
+
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const queryShop = url.searchParams.get("shop");
@@ -85,6 +92,22 @@ export async function POST(request: Request) {
   const parsedEnd = parseDate(endParam ?? bodyEnd) ?? defaultEnd;
   const startDate = atStartOfDay(parsedStart);
   const endDate = atEndOfDay(parsedEnd);
+  const rangeDays = countRangeDays(startDate, endDate);
+  const maxRangeDays = 90;
+
+  if (rangeDays === 0 || startDate > endDate) {
+    return NextResponse.json(
+      { error: "Invalid date range. Ensure start <= end." },
+      { status: 400 },
+    );
+  }
+
+  if (rangeDays > maxRangeDays) {
+    return NextResponse.json(
+      { error: `Date range too large (${rangeDays} days). Use <= ${maxRangeDays} days per sync.` },
+      { status: 400 },
+    );
+  }
 
   let totalInserted = 0;
 
