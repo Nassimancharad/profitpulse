@@ -370,3 +370,51 @@ ProfitPulse is a production-grade SaaS for Shopify profit tracking and analytics
 **Acceptance checks**
 - Regression tests for all attribution models.
 - Manual reconciliation check for a known payout period.
+
+## K) Current Repo Mapping + Gap Analysis
+
+### Repo mapping (as implemented today)
+
+| Architecture area | Repo locations | Notes |
+| --- | --- | --- |
+| UI layer | `src/app/dashboard/page.tsx`, `src/app/costs/page.tsx`, `src/app/connections/page.tsx`, `src/app/products/page.tsx`, `src/app/settings/page.tsx`, `src/app/preferences/page.tsx` | Next.js App Router screens for dashboard, costs, connections, product view, settings, preferences. |
+| API layer | `src/app/api/orders/profit/route.ts`, `src/app/api/costs/route.ts`, `src/app/api/expenses/route.ts`, `src/app/api/sync/route.ts`, `src/app/api/meta/sync/route.ts`, `src/app/api/shopify-payments/sync/route.ts`, `src/app/api/auth/**` | API routes for order profit, cost updates, expense CRUD, Shopify/Meta sync, payment fee sync, and OAuth/session endpoints. |
+| Domain layer (profit + allocation) | `src/lib/profit.ts`, `src/lib/orderProfit.ts`, `src/lib/dashboardSeries.ts`, `src/lib/adAttribution.ts`, `src/lib/paymentFees.ts`, `src/lib/shippingCost.ts`, `src/lib/expenses.ts`, `src/lib/portfolioAdSpend.ts` | Profit math, order-level breakdowns, dashboard rollups, ad spend allocation, shipping fee resolution, and expense allocation. |
+| Data layer | `prisma/schema.prisma`, `prisma/migrations/**` | Postgres schema for shops, products, orders, order lines, ad spend, fee config, expenses, and shipping rules. |
+| Ingestion/sync layer | `src/app/api/sync/route.ts`, `src/app/api/meta/sync/route.ts`, `src/app/api/shopify-payments/sync/route.ts`, `src/lib/shopifyAdmin.ts`, `src/lib/meta.ts` | Shopify orders/products sync, Meta spend sync, and Shopify Payments fee sync. |
+| Analytics/rollups | `src/lib/dashboardSeries.ts`, `src/lib/portfolioAdSpend.ts` | On-read aggregation for dashboard series and portfolio ad spend; no materialized views. |
+| Auth/session | `src/app/api/auth/**`, `src/lib/shopifySession.ts` | Shopify and Meta OAuth routes; session token verification for Shopify. |
+
+### Gaps vs the target architecture
+
+1) **Single Profit Engine as the only source of truth**
+   - Current implementation splits profit logic across `profit.ts`, `orderProfit.ts`, and `dashboardSeries.ts`, so there are multiple calculation paths instead of one canonical engine.  
+     **Impact:** risk of drift between dashboard totals and order-level profit if changes land in only one place.  
+
+2) **Raw vs derived separation + precomputed rollups**
+   - Prisma schema models raw entities (shops, orders, order lines, ad spend) but there are no derived tables such as `order_profit` or daily rollups; dashboard calculations are computed on-read.  
+     **Impact:** no recomputable derived layer or cached rollups for scale.
+
+3) **Idempotent ingestion with cursors + job scheduler**
+   - Sync endpoints directly fetch and upsert without storing cursor checkpoints or job records (no `sync_cursors` or `jobs` tables).  
+     **Impact:** limited retry visibility and no resumable background jobs.
+
+4) **Estimated vs actual fields + calc warnings**
+   - The schema has `paymentFeeActual` but no generalized `estimated` vs `actual` fields for costs/ad spend or `calc_warnings` storage.  
+     **Impact:** no standardized confidence reporting across costs and allocations.
+
+5) **Versioned calculation inputs**
+   - No `inputs_version` or `algorithm_version` fields are present in schema or API responses.  
+     **Impact:** historical numbers cannot be re-derived reliably after algorithm changes.
+
+6) **Observability + operational endpoints**
+   - No `/api/health` or structured logging/alerting integrations are present in the API routes.  
+     **Impact:** missing readiness checks and sync lag visibility.
+
+7) **Supabase Auth/RLS**
+   - The blueprint references Supabase Auth, but the repo currently uses Shopify session token verification and Prisma models only.  
+     **Impact:** the auth stack differs from the documented trust boundary model.
+
+8) **Reconciliation services**
+   - There is no reconciliation pipeline or tables for fee/ad reconciliation status beyond raw values.  
+     **Impact:** no systematized estimated-vs-actual reconciliation workflow.
