@@ -4,9 +4,15 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculateOrderProfitBreakdown } from '../src/lib/orderProfit';
-import { calculateProfitTotals } from '../src/lib/profit';
+import {
+  calculateNetProfitForOrder,
+  calculateNetRevenueForOrder,
+  calculatePaymentFeesForOrder,
+  calculateProfitTotals,
+} from '../src/lib/profit';
 import { calculateShippingTotals } from '../src/lib/shippingCost';
 import { calculatePaymentFee } from '../src/lib/paymentFees';
+import { buildSeriesForRange } from '../src/lib/dashboardSeries';
 
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
 const demoData = JSON.parse(
@@ -44,6 +50,10 @@ function buildLineInputs() {
       costPerUnit: product?.costPerUnit ?? null,
     };
   });
+}
+
+function assertClose(actual: number, expected: number, epsilon = 1e-8) {
+  assert.ok(Math.abs(actual - expected) < epsilon, `Expected ${actual} to be within ${epsilon} of ${expected}`);
 }
 
 test('calculateOrderProfitBreakdown allocates daily ad spend by order net revenue', () => {
@@ -100,6 +110,65 @@ test('calculateOrderProfitBreakdown allocates daily ad spend by order net revenu
   assert.ok(Math.abs((orderMap.get('1002')?.netProfit ?? 0) + 4.38) < 1e-8);
   assert.equal(orderMap.get('1001')?.refundedProductAmount, 10);
   assert.equal(orderMap.get('1003')?.refundedShippingAmount, 10);
+});
+
+test('order breakdown matches helper calculations for net revenue, fees, and net profit', () => {
+  const paymentFeePct = 2.9;
+  const paymentFeeFixed = 0.3;
+  const result = calculateOrderProfitBreakdown(
+    demoData.orders.map((order) => ({
+      id: order.id,
+      shopifyOrderId: order.shopifyOrderId,
+      createdAt: new Date(order.createdAt),
+      shippingRevenue: order.shippingRevenue,
+      shippingCost: order.shippingCost,
+      shippingCountryCode: order.shippingCountryCode,
+      refundedProductAmount: order.refundedProductAmount,
+      refundedShippingAmount: order.refundedShippingAmount,
+      paymentFeeActual: order.shopifyOrderId === '1001' ? 2 : null,
+      paymentFeePct,
+      paymentFeeFixed,
+    })),
+    buildLineInputs(),
+    demoData.adSpends.map((spend) => ({
+      date: new Date(spend.date),
+      amountSpent: spend.amountSpent,
+    })),
+    demoData.shippingCostRules,
+  );
+
+  const order = result.orders.find((entry) => entry.shopifyOrderId === '1001');
+  assert.ok(order);
+
+  const netRevenue = calculateNetRevenueForOrder({
+    productRevenue: order.netProductRevenue,
+    shippingRevenue: order.netShippingRevenue,
+    refundedProductAmount: 0,
+    refundedShippingAmount: 0,
+  });
+  const estimatedFee = calculatePaymentFeesForOrder({
+    netRevenue,
+    paymentFeeActual: null,
+    paymentFeePct,
+    paymentFeeFixed,
+  });
+  const actualFee = calculatePaymentFeesForOrder({
+    netRevenue,
+    paymentFeeActual: 2,
+    paymentFeePct,
+    paymentFeeFixed,
+  });
+  const netProfit = calculateNetProfitForOrder({
+    netRevenue,
+    cogs: order.cogs,
+    shippingCost: order.shippingCost,
+    adCostAllocated: order.adCostAllocated,
+    paymentFee: actualFee,
+  });
+
+  assertClose(order.paymentFeeEstimated, estimatedFee);
+  assertClose(order.paymentFee, actualFee);
+  assertClose(order.netProfit, netProfit);
 });
 
 test('order-level breakdown sums to portfolio totals', () => {
@@ -176,4 +245,93 @@ test('order-level breakdown sums to portfolio totals', () => {
 
   assert.ok(Math.abs(totalNetProfit - 10.555) < 1e-8);
   assert.ok(Math.abs(profitTotals.profit - 6.555) < 1e-8);
+});
+
+test('order-level totals align with dashboard aggregates without expenses', () => {
+  const paymentFeePct = 2.9;
+  const paymentFeeFixed = 0.3;
+  const result = calculateOrderProfitBreakdown(
+    demoData.orders.map((order) => ({
+      id: order.id,
+      shopifyOrderId: order.shopifyOrderId,
+      createdAt: new Date(order.createdAt),
+      shippingRevenue: order.shippingRevenue,
+      shippingCost: order.shippingCost,
+      shippingCountryCode: order.shippingCountryCode,
+      refundedProductAmount: order.refundedProductAmount,
+      refundedShippingAmount: order.refundedShippingAmount,
+      paymentFeeActual: null,
+      paymentFeePct,
+      paymentFeeFixed,
+    })),
+    buildLineInputs(),
+    demoData.adSpends.map((spend) => ({
+      date: new Date(spend.date),
+      amountSpent: spend.amountSpent,
+    })),
+    demoData.shippingCostRules,
+  );
+
+  const orders = demoData.orders.map((order) => ({
+    id: order.id,
+    shopId: demoData.shop.id,
+    createdAt: new Date(order.createdAt),
+    shippingRevenue: order.shippingRevenue,
+    shippingCost: order.shippingCost,
+    shippingCountryCode: order.shippingCountryCode,
+    refundedProductAmount: order.refundedProductAmount,
+    refundedShippingAmount: order.refundedShippingAmount,
+    paymentFeeActual: null,
+  }));
+
+  const orderLines = buildLineInputs().map((line) => ({
+    orderId: line.orderId,
+    quantity: line.quantity,
+    lineRevenue: line.lineRevenue,
+    product: { costPerUnit: line.costPerUnit },
+  }));
+
+  const netRevenueByShop = new Map<string, number>();
+  for (const order of orders) {
+    const productRevenue = orderLines
+      .filter((line) => line.orderId === order.id)
+      .reduce((sum, line) => sum + line.lineRevenue, 0);
+    const netRevenue = calculateNetRevenueForOrder({
+      productRevenue,
+      shippingRevenue: order.shippingRevenue ?? 0,
+      refundedProductAmount: order.refundedProductAmount ?? 0,
+      refundedShippingAmount: order.refundedShippingAmount ?? 0,
+    });
+    netRevenueByShop.set(order.shopId, (netRevenueByShop.get(order.shopId) ?? 0) + netRevenue);
+  }
+
+  const feeConfigByShop = new Map<string, { pct: number; fixed: number }>([
+    [demoData.shop.id, { pct: paymentFeePct, fixed: paymentFeeFixed }],
+  ]);
+
+  const { aggregateSeries } = buildSeriesForRange({
+    startDate: new Date('2025-01-10T00:00:00.000Z'),
+    endDate: new Date('2025-01-11T23:59:59.999Z'),
+    shopIds: [demoData.shop.id],
+    shops: [{ id: demoData.shop.id, shopDomain: demoData.shop.shopDomain }],
+    activeShopId: demoData.shop.id,
+    orders,
+    orderLines,
+    shippingCostRules: demoData.shippingCostRules,
+    adSpends: demoData.adSpends.map((spend) => ({
+      shopId: demoData.shop.id,
+      date: new Date(spend.date),
+      amountSpent: spend.amountSpent,
+    })),
+    useAllocatedAdSpend: false,
+    portfolioAdAllocationsByDate: [],
+    expenseAllocations: [],
+    netRevenueByShop,
+    feeConfigByShop,
+  });
+
+  const orderNetProfitTotal = result.orders.reduce((sum, order) => sum + order.netProfit, 0);
+  const dashboardNetProfitTotal = aggregateSeries.profit.reduce((sum, value) => sum + value, 0);
+
+  assertClose(orderNetProfitTotal, dashboardNetProfitTotal, 1e-6);
 });

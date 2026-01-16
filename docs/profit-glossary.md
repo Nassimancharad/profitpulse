@@ -27,6 +27,13 @@ All terms below align with the fields used in the codebase.
 - margin: `net_profit / net_revenue` when `net_revenue > 0`, otherwise 0.
 - roas: `net_revenue / ad_cost` when `ad_cost > 0`, otherwise null or 0 depending on view.
 
+## Expected Calculation Behavior
+
+- Refunds reduce revenue only (never costs): product refunds reduce product revenue, and shipping refunds reduce shipping revenue.
+- Net revenue never goes below zero for product or shipping components (each is clamped at zero).
+- Payment fees use actual values when available; otherwise they are estimated using the configured percentage + fixed fee.
+- Net profit is computed from net revenue minus COGS, shipping cost, ad cost, payment fee, and allocated expenses.
+
 ## Field Mapping (Code)
 
 - Helpers: `src/lib/profit.ts`
