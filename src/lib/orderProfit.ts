@@ -1,6 +1,10 @@
 import prisma from '@/lib/prisma';
 import { resolveShippingCost, type ShippingCostRuleInput } from '@/lib/shippingCost';
-import { calculatePaymentFee } from '@/lib/paymentFees';
+import {
+  calculateNetProfitForOrder,
+  calculateNetRevenueForOrder,
+  calculatePaymentFeesForOrder,
+} from '@/lib/profit';
 
 export type OrderProfitBreakdown = {
   orderId: string;
@@ -169,15 +173,24 @@ export function calculateOrderProfitBreakdown(
 
   const breakdown: OrderProfitBreakdown[] = Array.from(orderMap.values())
     .map((order) => {
-      const netRevenue =
-        Math.max(0, order.productRevenue - order.refundedProductAmount) +
-        Math.max(0, order.shippingRevenue - order.refundedShippingAmount);
-      const computedFee = calculatePaymentFee(
+      const netRevenue = calculateNetRevenueForOrder({
+        productRevenue: order.productRevenue,
+        shippingRevenue: order.shippingRevenue,
+        refundedProductAmount: order.refundedProductAmount,
+        refundedShippingAmount: order.refundedShippingAmount,
+      });
+      const computedFee = calculatePaymentFeesForOrder({
         netRevenue,
-        order.paymentFeePct,
-        order.paymentFeeFixed,
-      );
-      const paymentFee = order.paymentFeeActual ?? computedFee;
+        paymentFeeActual: null,
+        paymentFeePct: order.paymentFeePct,
+        paymentFeeFixed: order.paymentFeeFixed,
+      });
+      const paymentFee = calculatePaymentFeesForOrder({
+        netRevenue,
+        paymentFeeActual: order.paymentFeeActual,
+        paymentFeePct: order.paymentFeePct,
+        paymentFeeFixed: order.paymentFeeFixed,
+      });
       const netProductRevenue = Math.max(0, order.productRevenue - order.refundedProductAmount);
       const netShippingRevenue = Math.max(0, order.shippingRevenue - order.refundedShippingAmount);
 
@@ -199,12 +212,13 @@ export function calculateOrderProfitBreakdown(
         shippingCost: order.shippingCost ?? 0,
         adCostAllocated: order.adCostAllocated,
         paymentFee,
-        netProfit:
-          netRevenue -
-          order.cogs -
-          (order.shippingCost ?? 0) -
-          order.adCostAllocated -
+        netProfit: calculateNetProfitForOrder({
+          netRevenue,
+          cogs: order.cogs,
+          shippingCost: order.shippingCost ?? 0,
+          adCostAllocated: order.adCostAllocated,
           paymentFee,
+        }),
       };
     })
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
