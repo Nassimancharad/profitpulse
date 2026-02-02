@@ -26,8 +26,20 @@ function decodeCaPreview() {
   };
 }
 
+function getDatabaseHost() {
+  const url = process.env.DATABASE_URL;
+  if (!url) return null;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   const caPreview = decodeCaPreview();
+  const databaseHost = getDatabaseHost();
+  const usesPooler = Boolean(databaseHost && databaseHost.includes("pooler.supabase.com"));
   return NextResponse.json({
     ok: true,
     env: {
@@ -35,6 +47,10 @@ export async function GET() {
       DATABASE_SSL_CA: maskPresence(process.env.DATABASE_SSL_CA),
       DATABASE_SSL_CA_BASE64: maskPresence(process.env.DATABASE_SSL_CA_BASE64),
       DATABASE_URL_HAS_SSLMODE: hasSslMode(process.env.DATABASE_URL),
+    },
+    db: {
+      host: databaseHost,
+      usesPooler,
     },
     caPreview,
   });
