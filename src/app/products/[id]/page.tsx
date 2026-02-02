@@ -7,8 +7,8 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ProductCostEditor } from './ProductCostEditor';
 import { ProductCampaignLinker } from './ProductCampaignLinker';
-import { calculateProfitTotals } from '@/lib/profit';
 import { formatShopLabel } from '@/lib/shopLabel';
+import { computeLineProfitMetrics, computeProductProfitSummary } from '@/domain/profit-engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -123,8 +123,8 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
     lineRevenue: line.lineRevenue,
     costPerUnit: line.product?.costPerUnit ?? null,
   }));
-  const { totalRevenue, totalUnits, totalCost, totalAdSpend, roas } =
-    calculateProfitTotals(lineInputs, adSpends);
+  const { totalRevenue, totalUnits, totalCost, totalAdSpend, profit, profitMargin, roas } =
+    computeProductProfitSummary(lineInputs, adSpends);
   const linkedCampaigns = linkedCampaignsRaw.map((c) => c.campaignId);
   const availableCampaigns =
     campaignMeta.length > 0
@@ -136,8 +136,6 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
           .map((c) => c.campaignId)
           .filter((id): id is string => Boolean(id))
           .map((id) => ({ id, label: id }));
-  const profit = totalRevenue - totalCost - totalAdSpend;
-  const profitMargin = totalRevenue > 0 ? profit / totalRevenue : 0;
   const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
 
   const timeControl = (
@@ -239,10 +237,11 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
                 ) : (
                   orderLines.map((line) => {
                     const orderDate = new Date(line.order.createdAt);
-                    const lineCost =
-                      line.product?.costPerUnit != null ? line.quantity * line.product.costPerUnit : 0;
-                    const lineProfit = line.lineRevenue - lineCost;
-                    const margin = line.lineRevenue > 0 ? lineProfit / line.lineRevenue : 0;
+                    const { lineCost, lineProfit, margin } = computeLineProfitMetrics({
+                      quantity: line.quantity,
+                      lineRevenue: line.lineRevenue,
+                      costPerUnit: line.product?.costPerUnit ?? null,
+                    });
 
                     return (
                       <tr key={line.id} className="transition hover:bg-white/70">

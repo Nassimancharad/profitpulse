@@ -5,18 +5,44 @@ import { Pool } from "pg";
 // Reuse a single PrismaClient instance across hot reloads in Next.js.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error("Missing required env var: DATABASE_URL");
-}
-const pool = new Pool({
-  connectionString: databaseUrl,
-});
+const isTest = process.env.NODE_ENV === "test";
+let client: PrismaClient;
 
-const client =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    adapter: new PrismaPg(pool),
-  });
+function buildPoolOptions() {
+  const sslCa = process.env.DATABASE_SSL_CA;
+  if (!sslCa) return { connectionString: databaseUrl };
+  return {
+    connectionString: databaseUrl,
+    ssl: {
+      ca: sslCa,
+      rejectUnauthorized: true,
+    },
+  };
+}
+
+if (!databaseUrl) {
+  if (isTest) {
+    client = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error(
+            "Prisma client is mocked in tests. Set DATABASE_URL to enable DB access.",
+          );
+        },
+      },
+    ) as PrismaClient;
+  } else {
+    throw new Error("Missing required env var: DATABASE_URL");
+  }
+} else {
+  const pool = new Pool(buildPoolOptions());
+  client =
+    globalForPrisma.prisma ??
+    new PrismaClient({
+      adapter: new PrismaPg(pool),
+    });
+}
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = client;

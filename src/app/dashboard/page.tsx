@@ -5,12 +5,16 @@ import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { KpiTwoPanelChart } from '@/components/KpiTwoPanelChart';
 import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
-import { calculateProfitTotals, type AdSpendInput } from '@/lib/profit';
-import { calculateShippingTotals } from '@/lib/shippingCost';
+import { type AdSpendInput } from '@/lib/profit';
 import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from '@/lib/portfolioAdSpend';
-import { calculatePaymentFee } from '@/lib/paymentFees';
-import { allocateMonthlyExpenses, getTotalExpensesForView } from '@/lib/expenses';
 import { buildSeriesForRange } from '@/lib/dashboardSeries';
+import {
+  computePortfolioKPIs,
+  computeStoreKPIs,
+  type OrderInput,
+  type OrderLineInput,
+  type ShopOverview,
+} from '@/domain/profit-engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,13 +33,6 @@ const percentFormatter = new Intl.NumberFormat('en-US', {
 
 type DashboardProps = {
   searchParams?: Promise<{ start?: string; end?: string; shop?: string }>;
-};
-
-type ShopOverview = {
-  id: string;
-  shopDomain: string;
-  paymentFeePct?: number | null;
-  paymentFeeFixed?: number | null;
 };
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
@@ -192,125 +189,45 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
       : Promise.resolve([]),
   ]);
 
-  const lineInputs = orderLines.map((line) => ({
-    quantity: line.quantity,
-    lineRevenue: line.lineRevenue,
-    costPerUnit: line.product?.costPerUnit ?? null,
-  }));
-  const orderRevenueMap = buildOrderRevenueMap(orderLines);
-  const refundedProductAmount = orders.reduce(
-    (sum, order) => sum + ((order as any).refundedProductAmount ?? 0),
-    0,
-  );
-  const netRevenueByShop = buildNetRevenueByShop(orders, orderRevenueMap, activeShop?.id ?? null);
-  const expenseAllocations = allocateMonthlyExpenses(
-    (expenses as Array<{
+  const kpiData = {
+    shops,
+    orders: orders as OrderInput[],
+    orderLines: orderLines as OrderLineInput[],
+    shippingCostRules,
+    adSpends,
+    useAllocatedAdSpend,
+    portfolioAdAllocations,
+    expenses: expenses as Array<{
       shopId: string | null;
       amount: number;
       frequency: string;
       startDate: Date;
       endDate: Date | null;
-    }>),
-    startDate,
-    endDate,
-  );
-  const totalExpenses = getTotalExpensesForView(
-    expenseAllocations,
+    }>,
+    totalOrders,
+  };
+
+  const kpis = activeShop
+    ? computeStoreKPIs({ start: startDate, end: endDate }, activeShop.id, kpiData)
+    : computePortfolioKPIs({ start: startDate, end: endDate }, null, kpiData);
+
+  const {
+    totals: { totalRevenue, totalUnits, totalCost, totalAdSpend, profit, profitMargin, roas },
+    refundedProductAmount,
+    shippingTotals,
+    totalPaymentFees,
+    totalExpenses,
     netRevenueByShop,
-    activeShop?.id ?? null,
-  );
-  const feeConfigByShop = new Map<string, { pct: number; fixed: number }>();
-  for (const shopItem of shops) {
-    feeConfigByShop.set(shopItem.id, {
-      pct: shopItem.paymentFeePct ?? 0,
-      fixed: shopItem.paymentFeeFixed ?? 0,
-    });
-  }
-  const totalPaymentFees = orders.reduce((sum, order) => {
-    const orderId = order.id;
-    const shopId = (order as any).shopId ?? activeShop?.id;
-    if (!shopId) return sum;
-    const actualFee = (order as any).paymentFeeActual ?? null;
-    if (actualFee != null) {
-      return sum + actualFee;
-    }
-    const feeConfig = feeConfigByShop.get(shopId) ?? { pct: 0, fixed: 0 };
-    const productRevenue = orderRevenueMap.get(orderId) ?? 0;
-    const refundedProduct = (order as any).refundedProductAmount ?? 0;
-    const refundedShipping = (order as any).refundedShippingAmount ?? 0;
-    const shippingRevenue = (order as any).shippingRevenue ?? 0;
-    const netProductRevenue = Math.max(0, productRevenue - refundedProduct);
-    const netShippingRevenue = Math.max(0, shippingRevenue - refundedShipping);
-    const netRevenue = netProductRevenue + netShippingRevenue;
-    return sum + calculatePaymentFee(netRevenue, feeConfig.pct, feeConfig.fixed);
-  }, 0);
-  let shippingTotals = { shippingRevenue: 0, shippingCost: 0, shippingMargin: 0, warnings: [] as string[] };
-  if (activeShop) {
-    const shippingOrders = orders.map((order) => ({
-      id: order.id,
-      orderValue: (orderRevenueMap.get(order.id) ?? 0) + ((order as any).shippingRevenue ?? 0),
-      shippingRevenue: (order as any).shippingRevenue ?? 0,
-      refundedShippingAmount: (order as any).refundedShippingAmount ?? 0,
-      shippingCost: (order as any).shippingCost ?? null,
-      shippingCountryCode: ((order as any).shippingCountryCode ?? null) as string | null,
-    }));
-    shippingTotals = calculateShippingTotals(shippingOrders, shippingCostRules);
-  } else {
-    for (const shopItem of shops) {
-      const shopOrders = orders.filter((order) => (order as any).shopId === shopItem.id);
-      const shopRules = shippingCostRules.filter((rule) => (rule as any).shopId === shopItem.id);
-      const shippingOrders = shopOrders.map((order) => ({
-        id: order.id,
-        orderValue: (orderRevenueMap.get(order.id) ?? 0) + ((order as any).shippingRevenue ?? 0),
-        shippingRevenue: (order as any).shippingRevenue ?? 0,
-        refundedShippingAmount: (order as any).refundedShippingAmount ?? 0,
-        shippingCost: (order as any).shippingCost ?? null,
-        shippingCountryCode: ((order as any).shippingCountryCode ?? null) as string | null,
-      }));
-      const shopTotals = calculateShippingTotals(shippingOrders, shopRules);
-      shippingTotals.shippingRevenue += shopTotals.shippingRevenue;
-      shippingTotals.shippingCost += shopTotals.shippingCost;
-      shippingTotals.shippingMargin += shopTotals.shippingMargin;
-      if (shopTotals.warnings.length > 0) {
-        shippingTotals.warnings.push(...shopTotals.warnings);
-      }
-    }
-  }
+    expenseAllocations,
+    feeConfigByShop,
+    averageOrderValue,
+    netRevenueAfterFees,
+  } = kpis;
+
   if (shippingTotals.warnings.length > 0) {
     console.warn(`[shipping] ${shippingTotals.warnings.join(' ')}`);
   }
-  let allocatedAdSpends: AdSpendInput[] = adSpends;
-  let allocationMap: Map<string, number> | null = null;
-  if (useAllocatedAdSpend) {
-    allocationMap = new Map<string, number>();
-    for (const allocation of portfolioAdAllocations) {
-      allocationMap.set(allocation.shopId, allocation.totalAdSpend);
-    }
-    const totalAllocated = activeShop
-      ? allocationMap.get(activeShop.id) ?? 0
-      : portfolioAdAllocations.reduce((sum, allocation) => sum + allocation.totalAdSpend, 0);
-    allocatedAdSpends = totalAllocated ? [{ amountSpent: totalAllocated }] : [];
-  }
-  const { totalRevenue, totalUnits, totalCost, totalAdSpend, profit, profitMargin, roas } =
-    calculateProfitTotals(
-      lineInputs,
-      allocatedAdSpends,
-      {
-        shippingRevenue: shippingTotals.shippingRevenue,
-        shippingCost: shippingTotals.shippingCost,
-      },
-      {
-        refundedProductAmount,
-      },
-      {
-        paymentFees: totalPaymentFees,
-      },
-      {
-        expenses: totalExpenses,
-      },
-    );
 
-  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
   const revenueBreakdown = [
     {
       label: "Net revenue (after refunds)",
@@ -344,10 +261,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     },
     {
       label: "Net revenue (after fees)",
-      value:
-        totalRevenue -
-        totalPaymentFees -
-        (shippingTotals.shippingCost ?? 0),
+      value: netRevenueAfterFees,
       hint: "After payment fees & shipping costs",
     },
   ];
@@ -430,23 +344,37 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         : Promise.resolve([]),
     ]);
 
-  const previousOrderRevenueMap = buildOrderRevenueMap(previousOrderLines);
-  const previousNetRevenueByShop = buildNetRevenueByShop(
-    previousOrders,
-    previousOrderRevenueMap,
-    activeShop?.id ?? null,
-  );
-  const previousExpenseAllocations = allocateMonthlyExpenses(
-    (expenses as Array<{
-      shopId: string | null;
-      amount: number;
-      frequency: string;
-      startDate: Date;
-      endDate: Date | null;
-    }>),
-    previousStart,
-    previousEnd,
-  );
+  const previousKpis = activeShop
+    ? computeStoreKPIs(
+        { start: previousStart, end: previousEnd },
+        activeShop.id,
+        {
+          ...kpiData,
+          orders: previousOrders as OrderInput[],
+          orderLines: previousOrderLines as OrderLineInput[],
+          adSpends: previousAdSpends,
+          portfolioAdAllocations: previousPortfolioAdAllocationsByDate.map((allocation) => ({
+            shopId: allocation.shopId,
+            totalAdSpend: allocation.amountSpent,
+          })),
+          totalOrders: previousOrders.length,
+        },
+      )
+    : computePortfolioKPIs(
+        { start: previousStart, end: previousEnd },
+        null,
+        {
+          ...kpiData,
+          orders: previousOrders as OrderInput[],
+          orderLines: previousOrderLines as OrderLineInput[],
+          adSpends: previousAdSpends,
+          portfolioAdAllocations: previousPortfolioAdAllocationsByDate.map((allocation) => ({
+            shopId: allocation.shopId,
+            totalAdSpend: allocation.amountSpent,
+          })),
+          totalOrders: previousOrders.length,
+        },
+      );
   const { aggregateSeries: previousAggregateSeries, dateKeys: previousDateKeys } = buildSeriesForRange({
     startDate: previousStart,
     endDate: previousEnd,
@@ -459,9 +387,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     adSpends: previousAdSpends,
     useAllocatedAdSpend,
     portfolioAdAllocationsByDate: previousPortfolioAdAllocationsByDate,
-    expenseAllocations: previousExpenseAllocations,
-    netRevenueByShop: previousNetRevenueByShop,
-    feeConfigByShop,
+    expenseAllocations: previousKpis.expenseAllocations,
+    netRevenueByShop: previousKpis.netRevenueByShop,
+    feeConfigByShop: previousKpis.feeConfigByShop,
   });
 
   const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
@@ -602,49 +530,3 @@ const KPI_OPTIONS: Array<{ key: "revenue" | "orders" | "cogs" | "adSpend" | "pro
   { key: "margin", label: "Margin", format: "percent" },
   { key: "roas", label: "ROAS", format: "ratio" },
 ];
-
-type OrderInput = {
-  id: string;
-  shopId?: string | null;
-  createdAt?: Date | null;
-  shippingRevenue?: number | null;
-  shippingCost?: number | null;
-  shippingCountryCode?: string | null;
-  refundedProductAmount?: number | null;
-  refundedShippingAmount?: number | null;
-  paymentFeeActual?: number | null;
-};
-
-type OrderRevenueInput = {
-  orderId: string;
-  lineRevenue: number;
-};
-
-function buildOrderRevenueMap(orderLines: OrderRevenueInput[]) {
-  const orderRevenueMap = new Map<string, number>();
-  for (const line of orderLines) {
-    orderRevenueMap.set(line.orderId, (orderRevenueMap.get(line.orderId) ?? 0) + line.lineRevenue);
-  }
-  return orderRevenueMap;
-}
-
-function buildNetRevenueByShop(
-  orders: OrderInput[],
-  orderRevenueMap: Map<string, number>,
-  activeShopId: string | null,
-) {
-  const netRevenueByShop = new Map<string, number>();
-  for (const order of orders) {
-    const shopId = (order as any).shopId ?? activeShopId;
-    if (!shopId) continue;
-    const productRevenue = orderRevenueMap.get(order.id) ?? 0;
-    const refundedProduct = (order as any).refundedProductAmount ?? 0;
-    const refundedShipping = (order as any).refundedShippingAmount ?? 0;
-    const shippingRevenue = (order as any).shippingRevenue ?? 0;
-    const netProductRevenue = Math.max(0, productRevenue - refundedProduct);
-    const netShippingRevenue = Math.max(0, shippingRevenue - refundedShipping);
-    const netRevenue = netProductRevenue + netShippingRevenue;
-    netRevenueByShop.set(shopId, (netRevenueByShop.get(shopId) ?? 0) + netRevenue);
-  }
-  return netRevenueByShop;
-}

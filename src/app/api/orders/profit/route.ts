@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getOrderProfitBreakdown } from '@/lib/orderProfit';
+import { getOrderProfitBreakdown } from '@/data/order-profit';
 
 function parseDate(value: string | null): Date | null {
   if (!value) return null;

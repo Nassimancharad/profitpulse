@@ -4,6 +4,7 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import prisma from '@/lib/prisma';
 import { formatShopLabel } from '@/lib/shopLabel';
+import { computeProductProfitByProductId } from '@/domain/profit-engine';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,16 +97,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     },
   });
 
-  const profitByProduct = new Map<string, number>();
-  for (const line of orderLines) {
-    const costPerUnit = line.product?.costPerUnit ?? 0;
-    const lineCost = costPerUnit * line.quantity;
-    const lineProfit = line.lineRevenue - lineCost;
-    profitByProduct.set(
-      line.productId,
-      (profitByProduct.get(line.productId) ?? 0) + lineProfit,
-    );
-  }
+  const profitByProduct = computeProductProfitByProductId(
+    orderLines.map((line) => ({
+      productId: line.productId,
+      quantity: line.quantity,
+      lineRevenue: line.lineRevenue,
+      costPerUnit: line.product?.costPerUnit ?? null,
+    })),
+  );
 
   const query = resolvedSearchParams?.q?.trim().toLowerCase() ?? '';
   const rows = products

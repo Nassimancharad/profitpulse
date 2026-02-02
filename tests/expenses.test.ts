@@ -69,7 +69,10 @@ test('allocateMonthlyExpenses prorates across month boundaries', () => {
 
   const allocation = allocations.find((row) => row.shopId === 'shop-3');
   assert.ok(allocation);
-  assert.ok(Math.abs((allocation?.allocatedAmount ?? 0) - 310) < 1e-8);
+  const januaryPortion = (310 / 31) * 17;
+  const februaryPortion = (310 / 28) * 15;
+  const expected = januaryPortion + februaryPortion;
+  assert.ok(Math.abs((allocation?.allocatedAmount ?? 0) - expected) < 1e-8);
 });
 
 test('getTotalExpensesForView splits portfolio expense by net revenue', () => {

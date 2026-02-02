@@ -7,7 +7,8 @@
     "build": "DATABASE_URL=${DATABASE_URL:-postgresql://postgres@localhost:5432/postgres?schema=public} prisma generate && DATABASE_URL=${DATABASE_URL:-postgresql://postgres@localhost:5432/postgres?schema=public} NEXT_FONT_GOOGLE_SKIP_DOWNLOAD=1 next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --loader tsx --test"
+    "test": "NODE_ENV=test TZ=UTC node --import tsx --test",
+    "verify": "npm test && npm run build"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.1.0",
