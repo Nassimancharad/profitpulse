@@ -9,7 +9,11 @@ const isTest = process.env.NODE_ENV === "test";
 let client: PrismaClient;
 
 function buildPoolOptions() {
-  const sslCa = process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n");
+  const sslCaBase64 = process.env.DATABASE_SSL_CA_BASE64;
+  const sslCaDecoded = sslCaBase64
+    ? Buffer.from(sslCaBase64, "base64").toString("utf-8")
+    : null;
+  const sslCa = sslCaDecoded ?? process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n");
   if (!sslCa) return { connectionString: databaseUrl };
   return {
     connectionString: databaseUrl,
