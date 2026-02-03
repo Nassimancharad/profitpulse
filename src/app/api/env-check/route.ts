@@ -47,6 +47,9 @@ export async function GET() {
       DATABASE_SSL_CA: maskPresence(process.env.DATABASE_SSL_CA),
       DATABASE_SSL_CA_BASE64: maskPresence(process.env.DATABASE_SSL_CA_BASE64),
       DATABASE_URL_HAS_SSLMODE: hasSslMode(process.env.DATABASE_URL),
+      NODE_EXTRA_CA_CERTS: maskPresence(process.env.NODE_EXTRA_CA_CERTS),
+      PGSSLMODE: maskPresence(process.env.PGSSLMODE),
+      PGSSLROOTCERT: maskPresence(process.env.PGSSLROOTCERT),
     },
     db: {
       host: databaseHost,
