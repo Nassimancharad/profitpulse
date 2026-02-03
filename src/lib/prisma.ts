@@ -18,7 +18,7 @@ function getDatabaseHost() {
 }
 
 function normalizeDatabaseUrl() {
-  if (!databaseUrl) return null;
+  if (!databaseUrl) return "";
   try {
     const url = new URL(databaseUrl);
     url.searchParams.delete("sslmode");
