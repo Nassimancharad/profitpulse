@@ -22,22 +22,24 @@ function buildPoolOptions() {
   const usesPooler = Boolean(host && host.includes("pooler.supabase.com"));
   const servername = host ?? undefined;
   const allowInsecure = process.env.DATABASE_SSL_INSECURE === "true";
-  const sslCaBase64 = process.env.DATABASE_SSL_CA_BASE64;
+  const sslCaBase64 = process.env.DATABASE_SSL_CA_BASE64?.replace(/\s+/g, "");
   const sslCaDecoded = sslCaBase64
-    ? Buffer.from(sslCaBase64, "base64").toString("utf-8")
+    ? Buffer.from(sslCaBase64, "base64").toString("utf-8").trim()
     : null;
-  const sslCa = sslCaDecoded ?? process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n");
+  const sslCaRaw = sslCaDecoded ?? process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n");
+  const sslCa = sslCaRaw ? sslCaRaw.trim() : null;
+  const sslCaBuffer = sslCa ? Buffer.from(sslCa, "utf-8") : null;
   if (allowInsecure) {
     return {
       connectionString: databaseUrl,
       ssl: { rejectUnauthorized: false, servername },
     };
   }
-  if (sslCa) {
+  if (sslCaBuffer) {
     return {
       connectionString: databaseUrl,
       ssl: {
-        ca: sslCa,
+        ca: sslCaBuffer,
         rejectUnauthorized: true,
         servername,
       },

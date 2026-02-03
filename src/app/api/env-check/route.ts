@@ -16,13 +16,18 @@ function decodeCaPreview() {
       length: 0,
       startsWithPem: false,
       endsWithPem: false,
+      sha256: null,
     };
   }
-  const decoded = Buffer.from(raw, "base64").toString("utf-8").trim();
+  const cleaned = raw.replace(/\\s+/g, "");
+  const decoded = Buffer.from(cleaned, "base64").toString("utf-8").trim();
+  const crypto = require("crypto");
+  const sha256 = crypto.createHash("sha256").update(decoded).digest("hex");
   return {
     length: decoded.length,
     startsWithPem: decoded.startsWith("-----BEGIN CERTIFICATE-----"),
     endsWithPem: decoded.endsWith("-----END CERTIFICATE-----"),
+    sha256,
   };
 }
 
