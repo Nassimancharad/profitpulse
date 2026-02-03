@@ -50,6 +50,7 @@ export async function GET() {
       NODE_EXTRA_CA_CERTS: maskPresence(process.env.NODE_EXTRA_CA_CERTS),
       PGSSLMODE: maskPresence(process.env.PGSSLMODE),
       PGSSLROOTCERT: maskPresence(process.env.PGSSLROOTCERT),
+      DATABASE_SSL_INSECURE: maskPresence(process.env.DATABASE_SSL_INSECURE),
     },
     db: {
       host: databaseHost,

@@ -20,26 +20,34 @@ function getDatabaseHost() {
 function buildPoolOptions() {
   const host = getDatabaseHost();
   const usesPooler = Boolean(host && host.includes("pooler.supabase.com"));
+  const allowInsecure = process.env.DATABASE_SSL_INSECURE === "true";
   const sslCaBase64 = process.env.DATABASE_SSL_CA_BASE64;
   const sslCaDecoded = sslCaBase64
     ? Buffer.from(sslCaBase64, "base64").toString("utf-8")
     : null;
   const sslCa = sslCaDecoded ?? process.env.DATABASE_SSL_CA?.replace(/\\n/g, "\n");
-  if (!sslCa) return { connectionString: databaseUrl };
+  if (allowInsecure) {
+    return {
+      connectionString: databaseUrl,
+      ssl: { rejectUnauthorized: false },
+    };
+  }
+  if (sslCa) {
+    return {
+      connectionString: databaseUrl,
+      ssl: {
+        ca: sslCa,
+        rejectUnauthorized: true,
+      },
+    };
+  }
   if (usesPooler) {
-    // Supabase pooler uses a public CA; custom CA can break verification.
     return {
       connectionString: databaseUrl,
       ssl: { rejectUnauthorized: true },
     };
   }
-  return {
-    connectionString: databaseUrl,
-    ssl: {
-      ca: sslCa,
-      rejectUnauthorized: true,
-    },
-  };
+  return { connectionString: databaseUrl };
 }
 
 if (!databaseUrl) {
