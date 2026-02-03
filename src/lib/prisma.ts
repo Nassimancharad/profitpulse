@@ -17,11 +17,24 @@ function getDatabaseHost() {
   }
 }
 
+function normalizeDatabaseUrl() {
+  if (!databaseUrl) return null;
+  try {
+    const url = new URL(databaseUrl);
+    url.searchParams.delete("sslmode");
+    url.searchParams.delete("sslrootcert");
+    return url.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
+
 function buildPoolOptions() {
   const host = getDatabaseHost();
   const usesPooler = Boolean(host && host.includes("pooler.supabase.com"));
   const servername = host ?? undefined;
   const allowInsecure = process.env.DATABASE_SSL_INSECURE === "true";
+  const connectionString = normalizeDatabaseUrl();
   const sslCaBase64 = process.env.DATABASE_SSL_CA_BASE64?.replace(/\s+/g, "");
   const sslCaDecoded = sslCaBase64
     ? Buffer.from(sslCaBase64, "base64").toString("utf-8").trim()
@@ -31,13 +44,13 @@ function buildPoolOptions() {
   const sslCaBuffer = sslCa ? Buffer.from(sslCa, "utf-8") : null;
   if (allowInsecure) {
     return {
-      connectionString: databaseUrl,
+      connectionString,
       ssl: { rejectUnauthorized: false, servername },
     };
   }
   if (sslCaBuffer) {
     return {
-      connectionString: databaseUrl,
+      connectionString,
       ssl: {
         ca: sslCaBuffer,
         rejectUnauthorized: true,
@@ -47,11 +60,11 @@ function buildPoolOptions() {
   }
   if (usesPooler) {
     return {
-      connectionString: databaseUrl,
+      connectionString,
       ssl: { rejectUnauthorized: true, servername },
     };
   }
-  return { connectionString: databaseUrl };
+  return { connectionString };
 }
 
 if (!databaseUrl) {
