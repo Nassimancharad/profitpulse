@@ -1,6 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
-import { Pool } from "pg";
+import { Pool, type PoolConfig } from "pg";
 
 // Reuse a single PrismaClient instance across hot reloads in Next.js.
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
@@ -8,33 +8,31 @@ const databaseUrl = process.env.DATABASE_URL;
 const isTest = process.env.NODE_ENV === "test";
 let client: PrismaClient;
 
-function getDatabaseHost() {
-  if (!databaseUrl) return null;
+function getDatabaseHost(connectionString: string) {
   try {
-    return new URL(databaseUrl).hostname;
+    return new URL(connectionString).hostname;
   } catch {
     return null;
   }
 }
 
-function normalizeDatabaseUrl() {
-  if (!databaseUrl) return "";
+function normalizeDatabaseUrl(connectionString: string) {
   try {
-    const url = new URL(databaseUrl);
+    const url = new URL(connectionString);
     url.searchParams.delete("sslmode");
     url.searchParams.delete("sslrootcert");
     return url.toString();
   } catch {
-    return databaseUrl;
+    return connectionString;
   }
 }
 
-function buildPoolOptions() {
-  const host = getDatabaseHost();
+function buildPoolOptions(connectionString: string): PoolConfig {
+  const host = getDatabaseHost(connectionString);
   const usesPooler = Boolean(host && host.includes("pooler.supabase.com"));
   const servername = host ?? undefined;
   const allowInsecure = process.env.DATABASE_SSL_INSECURE === "true";
-  const connectionString = normalizeDatabaseUrl();
+  const normalizedConnectionString = normalizeDatabaseUrl(connectionString);
   const sslCaBase64 = process.env.DATABASE_SSL_CA_BASE64?.replace(/\s+/g, "");
   const sslCaDecoded = sslCaBase64
     ? Buffer.from(sslCaBase64, "base64").toString("utf-8").trim()
@@ -44,13 +42,13 @@ function buildPoolOptions() {
   const sslCaBuffer = sslCa ? Buffer.from(sslCa, "utf-8") : null;
   if (allowInsecure) {
     return {
-      connectionString,
+      connectionString: normalizedConnectionString,
       ssl: { rejectUnauthorized: false, servername },
     };
   }
   if (sslCaBuffer) {
     return {
-      connectionString,
+      connectionString: normalizedConnectionString,
       ssl: {
         ca: sslCaBuffer,
         rejectUnauthorized: true,
@@ -60,11 +58,11 @@ function buildPoolOptions() {
   }
   if (usesPooler) {
     return {
-      connectionString,
+      connectionString: normalizedConnectionString,
       ssl: { rejectUnauthorized: true, servername },
     };
   }
-  return { connectionString };
+  return { connectionString: normalizedConnectionString };
 }
 
 if (!databaseUrl) {
@@ -83,7 +81,7 @@ if (!databaseUrl) {
     throw new Error("Missing required env var: DATABASE_URL");
   }
 } else {
-  const pool = new Pool(buildPoolOptions());
+  const pool = new Pool(buildPoolOptions(databaseUrl));
   client =
     globalForPrisma.prisma ??
     new PrismaClient({
