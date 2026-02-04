@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "NODE_ENV=test TZ=UTC node --import tsx --test",
-    "verify": "npm test && npm run build"
+    "verify": "npm test && npm run build",
+    "smoke:postdeploy": "node scripts/post-deploy-smoke.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.3.0",

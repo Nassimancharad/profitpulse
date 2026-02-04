@@ -5,6 +5,7 @@ import {
   exchangeForLongLivedToken,
   fetchMetaAdAccounts,
 } from "@/lib/meta";
+import { logWarn } from "@/observability";
 
 function parseState(state: string | null) {
   if (!state) return null;
@@ -28,7 +29,9 @@ async function verifyState(state: string | null) {
     if (expected !== parsed.signature) return null;
     return parsed.shop;
   } catch (err) {
-    console.warn("Meta state verification failed", err);
+    logWarn("meta_state_verification_failed", {
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
     return null;
   }
 }
@@ -58,7 +61,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Invalid or missing state" }, { status: 400 });
   }
   if (!verifiedShop) {
-    console.warn("Meta OAuth state could not be verified; proceeding with shop param only");
+    logWarn("meta_state_unverified_fallback", { shopDomain });
   }
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });
@@ -79,7 +82,9 @@ export async function GET(request: Request) {
     accessToken = await exchangeForLongLivedToken(shortLivedToken);
   } catch (err) {
     // If long-lived exchange fails, continue with short-lived token.
-    console.warn("Meta long-lived token exchange failed:", err);
+    logWarn("meta_long_lived_exchange_failed", {
+      error: err instanceof Error ? err.message : "unknown_error",
+    });
   }
 
   let adAccounts: { id: string; name?: string | null }[] = [];

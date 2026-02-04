@@ -7,7 +7,8 @@ import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
 import { type AdSpendInput } from '@/lib/profit';
 import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from '@/lib/portfolioAdSpend';
-import { buildSeriesForRange } from '@/lib/dashboardSeries';
+import { buildDailyKpiSeries } from '@/analytics';
+import { logWarn } from '@/observability';
 import {
   computePortfolioKPIs,
   computeStoreKPIs,
@@ -225,7 +226,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   } = kpis;
 
   if (shippingTotals.warnings.length > 0) {
-    console.warn(`[shipping] ${shippingTotals.warnings.join(' ')}`);
+    logWarn("shipping_totals_warning", { warnings: shippingTotals.warnings });
   }
 
   const revenueBreakdown = [
@@ -266,7 +267,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     },
   ];
 
-  const { dateKeys, aggregateSeries, storeSeries } = buildSeriesForRange({
+  const { dateKeys, aggregateSeries, storeSeries } = buildDailyKpiSeries({
     startDate,
     endDate,
     shopIds,
@@ -375,7 +376,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           totalOrders: previousOrders.length,
         },
       );
-  const { aggregateSeries: previousAggregateSeries, dateKeys: previousDateKeys } = buildSeriesForRange({
+  const { aggregateSeries: previousAggregateSeries, dateKeys: previousDateKeys } = buildDailyKpiSeries({
     startDate: previousStart,
     endDate: previousEnd,
     shopIds,
