@@ -565,8 +565,8 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 xl:col-span-8 space-y-6">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              {trendCards.map((card) => (
-                <TrendCard key={card.key} {...card} />
+              {trendCards.map(({ key, ...card }) => (
+                <TrendCard key={key} {...card} />
               ))}
             </div>
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
