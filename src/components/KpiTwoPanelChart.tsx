@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { DropdownSelect } from "./DropdownSelect";
 
 export type KpiKey = "revenue" | "orders" | "cogs" | "adSpend" | "profit" | "margin" | "roas";
@@ -157,6 +157,7 @@ function LineChart({
   compactHeight,
   granularity,
   comparisonValues,
+  fixedHeight,
 }: {
   dateKeys: string[];
   series: LineSeries[];
@@ -165,14 +166,17 @@ function LineChart({
   compactHeight?: number;
   granularity: Granularity;
   comparisonValues?: number[];
+  fixedHeight?: number;
 }) {
   const chartId = useId();
   const clipId = `${chartId}-clip`;
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const width = 680;
-  const height = compact ? (compactHeight ?? 300) : 380;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(680);
+  const width = containerWidth;
+  const height = compact ? (compactHeight ?? 220) : 380;
   const padding = compact
-    ? { top: 16, right: 16, bottom: 36, left: 64 }
+    ? { top: 14, right: 14, bottom: 28, left: 56 }
     : { top: 16, right: 18, bottom: 32, left: 64 };
 
   const points = useMemo(() => {
@@ -221,13 +225,14 @@ function LineChart({
   const primaryValue = hoverIndex !== null ? series[0]?.values[hoverIndex] ?? null : null;
   const compareValue =
     hoverIndex !== null && comparisonValues ? comparisonValues[hoverIndex] ?? null : null;
-  const tooltipWidth = 180;
+  const tooltipWidth = 190;
   const tooltipX =
     hoverX !== null && hoverX + tooltipWidth + 18 > width - padding.right
       ? hoverX - tooltipWidth - 12
       : hoverX !== null
         ? hoverX + 10
         : 0;
+  const tooltipHeight = compareValue !== null ? 74 : 48;
 
   const formatAxisValue = (value: number) => {
     if (format === "currency") {
@@ -248,12 +253,27 @@ function LineChart({
     }).format(value);
   };
 
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      const nextWidth = Math.max(320, Math.round(entry.contentRect.width));
+      setContainerWidth(nextWidth);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="xMidYMid meet"
-      className="block h-auto w-full"
-    >
+    <div ref={containerRef} className="w-full">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMidYMid meet"
+        className="block w-full"
+        style={fixedHeight ? { height: fixedHeight } : undefined}
+      >
       {compact && series.length === 1 ? (
         <defs>
           <linearGradient id={`${chartId}-fill`} x1="0" y1="0" x2="0" y2="1">
@@ -423,7 +443,7 @@ function LineChart({
                 rx="10"
                 ry="10"
                 width={tooltipWidth}
-                height={compareValue !== null ? "60" : "44"}
+                height={tooltipHeight}
                 fill="rgba(255,255,255,0.95)"
                 stroke="rgba(17,18,22,0.08)"
               />
@@ -433,18 +453,24 @@ function LineChart({
               <text x={tooltipX + 12} y={padding.top + 42} fontSize="12" fontWeight="600" fill="rgba(17,18,22,0.9)">
                 {formatValue(format, primaryValue)}
               </text>
+              {compareValue !== null ? (
+                <text x={tooltipX + 12} y={padding.top + 58} fontSize="11" fill="rgba(17,18,22,0.6)">
+                  Prev {formatValue(format, compareValue)}
+                </text>
+              ) : null}
               {hoverIndex > 0 ? (() => {
                 const prev = series[0]?.values[hoverIndex - 1] ?? null;
-                if (prev === null || prev === 0) {
+                const base = compareValue ?? prev;
+                if (base === null || base === 0) {
                   return (
-                    <text x={tooltipX + 12} y={padding.top + 58} fontSize="11" fill="rgba(17,18,22,0.6)">
+                    <text x={tooltipX + 12} y={padding.top + 72} fontSize="11" fill="rgba(17,18,22,0.6)">
                       Δ —
                     </text>
                   );
                 }
-                const delta = (primaryValue - prev) / Math.abs(prev);
+                const delta = (primaryValue - base) / Math.abs(base);
                 return (
-                  <text x={tooltipX + 12} y={padding.top + 58} fontSize="11" fill="rgba(17,18,22,0.6)">
+                  <text x={tooltipX + 12} y={padding.top + 72} fontSize="11" fill="rgba(17,18,22,0.6)">
                     Δ {percentFormatter.format(delta)}
                   </text>
                 );
@@ -472,7 +498,8 @@ function LineChart({
         }}
         onMouseLeave={() => setHoverIndex(null)}
       />
-    </svg>
+      </svg>
+    </div>
   );
 }
 
@@ -511,7 +538,7 @@ export function KpiTwoPanelChart({
 
   return (
     <div className="mt-8 space-y-6">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
         {aggregateLines.map((line) => {
           const transformed = transformSeries({
             dateKeys,
@@ -538,10 +565,12 @@ export function KpiTwoPanelChart({
               ? "—"
               : `${deltaPct >= 0 ? "+" : ""}${percentFormatter.format(deltaPct)}`;
           const deltaTone = deltaPct === null ? "text-[color:var(--pp-muted)]" : deltaPct >= 0 ? "text-emerald-600" : "text-rose-600";
+          const cardSpan =
+            line.id === "profit" ? "lg:col-span-2" : "lg:col-span-1";
           return (
           <section
             key={line.id}
-            className="pp-card glass-surface w-full min-w-0 p-5"
+            className={`pp-card glass-surface w-full min-w-0 p-4 ${cardSpan}`}
           >
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
@@ -557,7 +586,7 @@ export function KpiTwoPanelChart({
                     {formatValue(line.format, currentTotal)}
                   </div>
                   <div className="text-xs text-[color:var(--pp-muted)]">
-                    {comparisonLabel ?? ""}
+                    {comparisonLabel && comparisonLabel.trim().length > 0 ? comparisonLabel : "vs previous period"}
                   </div>
                 </div>
               </div>
@@ -581,7 +610,7 @@ export function KpiTwoPanelChart({
                 </button>
               ))}
             </div>
-            <div className="mt-3 min-w-0 rounded-2xl border border-[color:var(--pp-border)] bg-white/60 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+            <div className="mt-3 min-w-0 rounded-2xl border border-[color:var(--pp-border)] bg-white/60 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
               {transformed.values.every((value) => value === 0) ? (
                 <div className="flex h-52 items-center justify-center text-sm text-[color:var(--pp-muted)]">
                   No data in selected period.
@@ -593,7 +622,12 @@ export function KpiTwoPanelChart({
                   format={line.format}
                   granularity={granularity}
                   compact
-                  compactHeight={line.id === "revenue" ? 360 : undefined}
+                  compactHeight={
+                    line.id === "profit" ? 240 : line.id === "revenue" || line.id === "adSpend" ? 220 : 200
+                  }
+                  fixedHeight={
+                    line.id === "profit" ? 240 : line.id === "revenue" || line.id === "adSpend" ? 220 : 200
+                  }
                   comparisonValues={compareTransformed.values}
                 />
               )}

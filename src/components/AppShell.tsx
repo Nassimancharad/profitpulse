@@ -41,6 +41,10 @@ type AppShellProps = {
    * Overflow menu / tertiary actions.
    */
   overflowActions?: ReactNode;
+  /**
+   * Keep the filter/actions row sticky below the header.
+   */
+  filtersSticky?: boolean;
   children: ReactNode;
 };
 
@@ -53,6 +57,7 @@ export function AppShell({
   secondaryActions,
   actions,
   overflowActions,
+  filtersSticky = false,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -120,9 +125,15 @@ export function AppShell({
           </header>
 
           <main className="flex-1 pb-24">
-            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
               {secondaryActions || timeControl || (periodLabel && periodLabel !== "—") ? (
-                <div className="my-6 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                <div
+                  className={`my-6 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3 ${
+                    filtersSticky
+                      ? "sticky top-20 z-20 rounded-2xl border border-[color:var(--pp-border)] bg-[var(--pp-bg)]/85 px-3 py-3 backdrop-blur"
+                      : ""
+                  }`}
+                >
                   {secondaryActions ?? actions ? (
                     <div className="w-full min-w-0 sm:w-auto">{secondaryActions ?? actions}</div>
                   ) : null}
