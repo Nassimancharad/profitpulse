@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { fetchShopifyPaymentTransactions, type ShopifyPaymentTransaction } from "@/lib/shopifyAdmin";
+import { acquireSyncLock, recordSyncError, recordSyncSuccess } from "@/data/syncState";
 import { buildIdempotencyKey, finishJobRun, startJobRun } from "@/jobs";
 
 export type ShopifyPaymentsSyncResult = {
@@ -52,12 +53,25 @@ export async function syncShopifyPayments(params: {
   const shop = await prisma.shop.findUnique({ where: { shopDomain: params.shopDomain } });
   if (!shop) return { ok: false, status: 404, error: "Shop not found" };
 
+  const lock = await acquireSyncLock({ shopId: shop.id, resource: "SHOPIFY_PAYMENTS" });
+  if (!lock.ok) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Shopify Payments sync already running. Try again in a few minutes.",
+    };
+  }
+
   const today = new Date();
   const defaultEnd = atEndOfDay(new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())));
   const defaultStart = atStartOfDay(new Date(defaultEnd));
   defaultStart.setDate(defaultEnd.getDate() - 30);
 
-  const parsedStart = parseDate(params.start) ?? defaultStart;
+  const overlapMs = 24 * 60 * 60 * 1000;
+  const syncStateStart = lock.state.lastSyncedAt
+    ? new Date(lock.state.lastSyncedAt.getTime() - overlapMs)
+    : null;
+  const parsedStart = parseDate(params.start) ?? syncStateStart ?? defaultStart;
   const parsedEnd = parseDate(params.end) ?? defaultEnd;
   const startDate = atStartOfDay(parsedStart);
   const endDate = atEndOfDay(parsedEnd);
@@ -88,6 +102,7 @@ export async function syncShopifyPayments(params: {
   } catch (error) {
     finishJobRun(run, "error");
     const message = error instanceof Error ? error.message : "Failed to fetch Shopify Payments transactions";
+    await recordSyncError({ shopId: shop.id, resource: "SHOPIFY_PAYMENTS", error: message });
     return {
       ok: false,
       status: 502,
@@ -96,40 +111,48 @@ export async function syncShopifyPayments(params: {
     };
   }
 
-  const feeByOrder = new Map<string, number>();
-  for (const tx of transactions) {
-    if (tx.created_at) {
-      const createdAt = new Date(tx.created_at);
-      if (createdAt < startDate || createdAt > endDate) continue;
+  try {
+    const feeByOrder = new Map<string, number>();
+    for (const tx of transactions) {
+      if (tx.created_at) {
+        const createdAt = new Date(tx.created_at);
+        if (createdAt < startDate || createdAt > endDate) continue;
+      }
+      if (!tx?.source_id) continue;
+      if (tx.type && !["charge", "refund"].includes(tx.type)) continue;
+      const fee = Number(tx.fee ?? 0);
+      if (!Number.isFinite(fee) || fee === 0) continue;
+      const orderId = String(tx.source_id);
+      feeByOrder.set(orderId, (feeByOrder.get(orderId) ?? 0) + Math.abs(fee));
     }
-    if (!tx?.source_id) continue;
-    if (tx.type && !["charge", "refund"].includes(tx.type)) continue;
-    const fee = Number(tx.fee ?? 0);
-    if (!Number.isFinite(fee) || fee === 0) continue;
-    const orderId = String(tx.source_id);
-    feeByOrder.set(orderId, (feeByOrder.get(orderId) ?? 0) + Math.abs(fee));
-  }
 
-  let ordersUpdated = 0;
-  for (const [shopifyOrderId, paymentFeeActual] of feeByOrder.entries()) {
-    await prisma.order.updateMany({
-      where: { shopId: shop.id, shopifyOrderId },
-      data: { paymentFeeActual },
-    });
-    ordersUpdated += 1;
-  }
+    let ordersUpdated = 0;
+    for (const [shopifyOrderId, paymentFeeActual] of feeByOrder.entries()) {
+      await prisma.order.updateMany({
+        where: { shopId: shop.id, shopifyOrderId },
+        data: { paymentFeeActual },
+      });
+      ordersUpdated += 1;
+    }
 
-  finishJobRun(run, "ok");
-  return {
-    ok: true,
-    result: {
-      shopDomain: shop.shopDomain,
-      dateRange: {
-        start: startDate.toISOString().slice(0, 10),
-        end: endDate.toISOString().slice(0, 10),
+    finishJobRun(run, "ok");
+    await recordSyncSuccess({ shopId: shop.id, resource: "SHOPIFY_PAYMENTS" });
+    return {
+      ok: true,
+      result: {
+        shopDomain: shop.shopDomain,
+        dateRange: {
+          start: startDate.toISOString().slice(0, 10),
+          end: endDate.toISOString().slice(0, 10),
+        },
+        transactionsProcessed: transactions.length,
+        ordersUpdated,
       },
-      transactionsProcessed: transactions.length,
-      ordersUpdated,
-    },
-  };
+    };
+  } catch (error) {
+    finishJobRun(run, "error");
+    const message = error instanceof Error ? error.message : "Failed to persist Shopify Payments data";
+    await recordSyncError({ shopId: shop.id, resource: "SHOPIFY_PAYMENTS", error: message });
+    return { ok: false, status: 500, error: message, reason: "error" };
+  }
 }
