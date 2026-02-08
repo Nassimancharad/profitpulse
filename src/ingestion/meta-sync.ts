@@ -100,14 +100,25 @@ export async function syncMetaSpend(params: {
   }
 
   if (rangeDays === 0 || startDate > endDate) {
+    await recordSyncError({
+      shopId: shop.id,
+      resource: "META",
+      error: "Invalid date range. Ensure start <= end.",
+    });
     return { ok: false, status: 400, error: "Invalid date range. Ensure start <= end." };
   }
 
   if (rangeDays > maxRangeDays) {
+    const message = `Date range too large (${rangeDays} days). Use <= ${maxRangeDays} days per sync.`;
+    await recordSyncError({
+      shopId: shop.id,
+      resource: "META",
+      error: message,
+    });
     return {
       ok: false,
       status: 400,
-      error: `Date range too large (${rangeDays} days). Use <= ${maxRangeDays} days per sync.`,
+      error: message,
     };
   }
 
