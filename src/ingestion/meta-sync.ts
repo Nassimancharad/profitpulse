@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { fetchMetaDailySpend } from "@/lib/meta";
+import { acquireSyncLock, recordSyncError, recordSyncSuccess } from "@/data/syncState";
 import { buildIdempotencyKey, finishJobRun, startJobRun } from "@/jobs";
 
 export type MetaSyncResult = {
@@ -34,12 +35,17 @@ function countRangeDays(startDate: Date, endDate: Date) {
   return Math.floor(diff / msPerDay) + 1;
 }
 
-export function parseMetaSyncWindow(start: string | null, end: string | null, now = new Date()) {
+export function parseMetaSyncWindow(
+  start: string | null,
+  end: string | null,
+  now = new Date(),
+  fallbackStart?: Date,
+) {
   const defaultEnd = atEndOfDay(new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())));
   const defaultStart = atStartOfDay(new Date(defaultEnd));
   defaultStart.setFullYear(defaultEnd.getFullYear() - 2);
 
-  const parsedStart = parseDate(start) ?? defaultStart;
+  const parsedStart = parseDate(start) ?? fallbackStart ?? defaultStart;
   const parsedEnd = parseDate(end) ?? defaultEnd;
   return {
     startDate: atStartOfDay(parsedStart),
@@ -70,9 +76,28 @@ export async function syncMetaSpend(params: {
     return { ok: false, status: 400, error: "No connected Meta ad accounts for this shop" };
   }
 
-  const { startDate, endDate } = parseMetaSyncWindow(params.start, params.end);
-  const rangeDays = countRangeDays(startDate, endDate);
+  const lock = await acquireSyncLock({ shopId: shop.id, resource: "META" });
+  if (!lock.ok) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Meta sync already running. Try again in a few minutes.",
+    };
+  }
+
+  const overlapMs = 7 * 24 * 60 * 60 * 1000;
+  const fallbackStart = lock.state.lastSyncedAt
+    ? new Date(lock.state.lastSyncedAt.getTime() - overlapMs)
+    : undefined;
+  let { startDate, endDate } = parseMetaSyncWindow(params.start, params.end, new Date(), fallbackStart);
+  let rangeDays = countRangeDays(startDate, endDate);
   const maxRangeDays = 90;
+  if (!params.start && rangeDays > maxRangeDays) {
+    const adjustedStart = new Date(endDate);
+    adjustedStart.setDate(adjustedStart.getDate() - (maxRangeDays - 1));
+    startDate = atStartOfDay(adjustedStart);
+    rangeDays = countRangeDays(startDate, endDate);
+  }
 
   if (rangeDays === 0 || startDate > endDate) {
     return { ok: false, status: 400, error: "Invalid date range. Ensure start <= end." };
@@ -101,45 +126,53 @@ export async function syncMetaSpend(params: {
 
   let totalInserted = 0;
 
-  for (const account of shop.metaAdAccounts) {
-    const insights = await fetchMetaDailySpend(account.adAccountId, account.accessToken, startDate, endDate);
+  try {
+    for (const account of shop.metaAdAccounts) {
+      const insights = await fetchMetaDailySpend(account.adAccountId, account.accessToken, startDate, endDate);
 
-    await prisma.adSpend.deleteMany({
-      where: {
-        shopId: shop.id,
-        adAccountId: account.adAccountId,
-        date: { gte: startDate, lte: endDate },
+      await prisma.adSpend.deleteMany({
+        where: {
+          shopId: shop.id,
+          adAccountId: account.adAccountId,
+          date: { gte: startDate, lte: endDate },
+        },
+      });
+
+      if (insights.length === 0) continue;
+
+      await prisma.adSpend.createMany({
+        data: insights.map((row) => ({
+          shopId: shop.id,
+          adAccountId: account.adAccountId,
+          date: new Date(row.date),
+          campaignId: row.campaignId ?? null,
+          adsetId: row.adsetId ?? null,
+          adId: row.adId ?? null,
+          amountSpent: row.spend,
+        })),
+      });
+
+      totalInserted += insights.length;
+    }
+
+    finishJobRun(run, "ok");
+    await recordSyncSuccess({ shopId: shop.id, resource: "META" });
+    return {
+      ok: true,
+      result: {
+        shopDomain: shop.shopDomain,
+        dateRange: {
+          start: startDate.toISOString().slice(0, 10),
+          end: endDate.toISOString().slice(0, 10),
+        },
+        accountsProcessed: shop.metaAdAccounts.length,
+        spendsInserted: totalInserted,
       },
-    });
-
-    if (insights.length === 0) continue;
-
-    await prisma.adSpend.createMany({
-      data: insights.map((row) => ({
-        shopId: shop.id,
-        adAccountId: account.adAccountId,
-        date: new Date(row.date),
-        campaignId: row.campaignId ?? null,
-        adsetId: row.adsetId ?? null,
-        adId: row.adId ?? null,
-        amountSpent: row.spend,
-      })),
-    });
-
-    totalInserted += insights.length;
+    };
+  } catch (error) {
+    finishJobRun(run, "error");
+    const message = error instanceof Error ? error.message : "Failed to sync Meta spend";
+    await recordSyncError({ shopId: shop.id, resource: "META", error: message });
+    return { ok: false, status: 500, error: message };
   }
-
-  finishJobRun(run, "ok");
-  return {
-    ok: true,
-    result: {
-      shopDomain: shop.shopDomain,
-      dateRange: {
-        start: startDate.toISOString().slice(0, 10),
-        end: endDate.toISOString().slice(0, 10),
-      },
-      accountsProcessed: shop.metaAdAccounts.length,
-      spendsInserted: totalInserted,
-    },
-  };
 }

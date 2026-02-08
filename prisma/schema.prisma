@@ -30,6 +30,7 @@ model Shop {
   metaCampaigns MetaCampaign[]
   shippingCostRules ShippingCostRule[]
   expenses    Expense[]
+  syncStates  SyncState[]
 }
 
 model Product {
@@ -161,4 +162,36 @@ model MetaCampaign {
 
   @@unique([shopId, campaignId])
   @@index([shopId, adAccountId])
+}
+
+enum SyncResource {
+  SHOPIFY
+  SHOPIFY_PAYMENTS
+  META
+}
+
+enum SyncStatus {
+  IDLE
+  RUNNING
+  OK
+  ERROR
+}
+
+model SyncState {
+  id             String       @id @default(cuid())
+  shop           Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId         String
+  resource       SyncResource
+  status         SyncStatus   @default(IDLE)
+  lastSyncedAt   DateTime?
+  lastStartedAt  DateTime?
+  lastFinishedAt DateTime?
+  lockedAt       DateTime?
+  lockExpiresAt  DateTime?
+  error          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([shopId, resource])
+  @@index([shopId, status])
 }
