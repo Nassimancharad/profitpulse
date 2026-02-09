@@ -157,6 +157,10 @@ export async function POST(request: Request) {
         productIdMap.set(shopifyProductId, productId);
       }
 
+      if (!productId) {
+        continue;
+      }
+
       const lineRevenue = Number(line.price ?? 0) * (line.quantity ?? 0);
 
       lineCreates.push({
