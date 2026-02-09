@@ -145,8 +145,8 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
         }))
       : campaignRows
           .map((c: { campaignId: string | null }) => c.campaignId)
-          .filter((id): id is string => Boolean(id))
-          .map((id) => ({ id, label: id }));
+          .filter((id: string | null): id is string => Boolean(id))
+          .map((id: string) => ({ id, label: id }));
   const profit = totalRevenue - totalCost - totalAdSpend;
   const profitMargin = totalRevenue > 0 ? profit / totalRevenue : 0;
   const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
