@@ -258,7 +258,11 @@ export async function syncShopifyStoreData(params: {
       }
 
       if (lineCreates.length > 0) {
-        await prisma.orderLine.createMany({ data: lineCreates });
+        const batchSize = 500;
+        for (let idx = 0; idx < lineCreates.length; idx += batchSize) {
+          const slice = lineCreates.slice(idx, idx + batchSize);
+          await prisma.orderLine.createMany({ data: slice });
+        }
         orderLinesSynced += lineCreates.length;
       }
 

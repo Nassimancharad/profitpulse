@@ -57,6 +57,7 @@ export async function syncMetaSpend(params: {
   shopDomain: string | null;
   start: string | null;
   end: string | null;
+  maxPages?: number;
 }): Promise<{ ok: true; result: MetaSyncResult } | { ok: false; status: number; error: string }> {
   if (!params.shopDomain) {
     return {
@@ -127,41 +128,72 @@ export async function syncMetaSpend(params: {
     shop.shopDomain,
     startDate.toISOString().slice(0, 10),
     endDate.toISOString().slice(0, 10),
+    params.maxPages ?? null,
   ]);
+  const cursorParts = [`${startDate.toISOString().slice(0, 10)}..${endDate.toISOString().slice(0, 10)}`];
+  if (params.maxPages) {
+    cursorParts.push(`maxPages=${params.maxPages}`);
+  }
   const run = startJobRun({
     name: "meta-sync",
     scope: shop.shopDomain,
-    cursor: `${startDate.toISOString().slice(0, 10)}..${endDate.toISOString().slice(0, 10)}`,
+    cursor: cursorParts.join(" | "),
     idempotencyKey,
   });
 
   let totalInserted = 0;
 
   try {
-    for (const account of shop.metaAdAccounts) {
-      const insights = await fetchMetaDailySpend(account.adAccountId, account.accessToken, startDate, endDate);
+    const batchSize = 500;
 
-      await prisma.adSpend.deleteMany({
-        where: {
-          shopId: shop.id,
-          adAccountId: account.adAccountId,
-          date: { gte: startDate, lte: endDate },
-        },
-      });
+    for (const account of shop.metaAdAccounts) {
+      const insights = await fetchMetaDailySpend(
+        account.adAccountId,
+        account.accessToken,
+        startDate,
+        endDate,
+        params.maxPages ? { maxPages: params.maxPages } : undefined,
+      );
 
       if (insights.length === 0) continue;
 
-      await prisma.adSpend.createMany({
-        data: insights.map((row) => ({
-          shopId: shop.id,
-          adAccountId: account.adAccountId,
-          date: new Date(row.date),
-          campaignId: row.campaignId ?? null,
-          adsetId: row.adsetId ?? null,
-          adId: row.adId ?? null,
-          amountSpent: row.spend,
-        })),
-      });
+      if (params.maxPages) {
+        const dates = Array.from(
+          new Set(insights.map((row) => row.date).filter((value): value is string => Boolean(value))),
+        ).map((value) => new Date(value));
+        if (dates.length > 0) {
+          await prisma.adSpend.deleteMany({
+            where: {
+              shopId: shop.id,
+              adAccountId: account.adAccountId,
+              date: { in: dates },
+            },
+          });
+        }
+      } else {
+        await prisma.adSpend.deleteMany({
+          where: {
+            shopId: shop.id,
+            adAccountId: account.adAccountId,
+            date: { gte: startDate, lte: endDate },
+          },
+        });
+      }
+
+      for (let idx = 0; idx < insights.length; idx += batchSize) {
+        const slice = insights.slice(idx, idx + batchSize);
+        await prisma.adSpend.createMany({
+          data: slice.map((row) => ({
+            shopId: shop.id,
+            adAccountId: account.adAccountId,
+            date: new Date(row.date),
+            campaignId: row.campaignId ?? null,
+            adsetId: row.adsetId ?? null,
+            adId: row.adId ?? null,
+            amountSpent: row.spend,
+          })),
+        });
+      }
 
       totalInserted += insights.length;
     }
