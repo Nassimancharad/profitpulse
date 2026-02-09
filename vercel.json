@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/shopify",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/meta",
-      "schedule": "5 * * * *"
+      "schedule": "5 3 * * *"
     }
   ]
 }
