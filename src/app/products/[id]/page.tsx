@@ -7,7 +7,6 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ProductCostEditor } from './ProductCostEditor';
 import { ProductCampaignLinker } from './ProductCampaignLinker';
-import type { Prisma } from '@prisma/client';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -26,13 +25,17 @@ const roasFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-type OrderLineWithOrderProduct = Prisma.OrderLineGetPayload<{
-  include: { order: true; product: true };
-}>;
-type AdSpendAmount = Prisma.AdSpendGetPayload<{ select: { amountSpent: true } }>;
-type CampaignIdRow = Prisma.AdSpendGetPayload<{ select: { campaignId: true } }>;
-type LinkedCampaignRow = Prisma.CampaignProductGetPayload<{ select: { campaignId: true } }>;
-type MetaCampaignRow = Prisma.MetaCampaignGetPayload<{ select: { campaignId: true; name: true } }>;
+type OrderLineWithOrderProduct = {
+  id: string;
+  quantity: number;
+  lineRevenue: number;
+  product: { costPerUnit: number | null } | null;
+  order: { createdAt: Date; shopifyOrderId: string };
+};
+type AdSpendAmount = { amountSpent: number };
+type CampaignIdRow = { campaignId: string | null };
+type LinkedCampaignRow = { campaignId: string };
+type MetaCampaignRow = { campaignId: string; name: string | null };
 
 type PageProps = {
   params: Promise<{ id: string }>;

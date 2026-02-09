@@ -3,7 +3,6 @@ import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import prisma from '@/lib/prisma';
 import { getAdSpendPerProduct, type ProductAdSpend } from '@/lib/adAttribution';
-import type { Prisma } from '@prisma/client';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -22,10 +21,14 @@ const roasFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 2,
 });
 
-type OrderLineWithProduct = Prisma.OrderLineGetPayload<{
-  include: { product: true };
-}>;
-type AdSpendRow = Prisma.AdSpendGetPayload<{}>;
+type OrderLineWithProduct = {
+  lineRevenue: number;
+  quantity: number;
+  product: { costPerUnit: number | null } | null;
+};
+type AdSpendRow = {
+  amountSpent: number;
+};
 
 type DashboardProps = {
   searchParams?: { start?: string; end?: string };
