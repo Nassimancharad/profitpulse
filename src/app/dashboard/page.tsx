@@ -24,7 +24,7 @@ const roasFormatter = new Intl.NumberFormat('en-US', {
 type OrderLineWithProduct = {
   lineRevenue: number;
   quantity: number;
-  product: { costPerUnit: number | null } | null;
+  product: { id: string; title: string; imageUrl: string | null; costPerUnit: number | null } | null;
 };
 type AdSpendRow = {
   amountSpent: number;
