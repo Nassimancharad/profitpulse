@@ -144,7 +144,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
           label: c.name || c.campaignId,
         }))
       : campaignRows
-          .map((c) => c.campaignId)
+          .map((c: { campaignId: string | null }) => c.campaignId)
           .filter((id): id is string => Boolean(id))
           .map((id) => ({ id, label: id }));
   const profit = totalRevenue - totalCost - totalAdSpend;
