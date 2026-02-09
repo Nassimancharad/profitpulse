@@ -136,7 +136,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
     0,
   );
   const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : null;
-  const linkedCampaigns = linkedCampaignsRaw.map((c) => c.campaignId);
+  const linkedCampaigns = linkedCampaignsRaw.map((c: { campaignId: string }) => c.campaignId);
   const availableCampaigns =
     campaignMeta.length > 0
       ? campaignMeta.map((c) => ({
