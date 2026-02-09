@@ -157,8 +157,6 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const overflowActions = (
     <OverflowMenu
       shopDomain={shop.shopDomain}
-      embeddedHref={`/app?shop=${encodeURIComponent(shop.shopDomain)}`}
-      connectionsHref="/settings"
     />
   );
 
