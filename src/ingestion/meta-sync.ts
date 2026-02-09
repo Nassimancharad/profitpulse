@@ -155,15 +155,30 @@ export async function syncMetaSpend(params: {
         params.maxPages ? { maxPages: params.maxPages } : undefined,
       );
 
-      await prisma.adSpend.deleteMany({
-        where: {
-          shopId: shop.id,
-          adAccountId: account.adAccountId,
-          date: { gte: startDate, lte: endDate },
-        },
-      });
-
       if (insights.length === 0) continue;
+
+      if (params.maxPages) {
+        const dates = Array.from(
+          new Set(insights.map((row) => row.date).filter((value): value is string => Boolean(value))),
+        ).map((value) => new Date(value));
+        if (dates.length > 0) {
+          await prisma.adSpend.deleteMany({
+            where: {
+              shopId: shop.id,
+              adAccountId: account.adAccountId,
+              date: { in: dates },
+            },
+          });
+        }
+      } else {
+        await prisma.adSpend.deleteMany({
+          where: {
+            shopId: shop.id,
+            adAccountId: account.adAccountId,
+            date: { gte: startDate, lte: endDate },
+          },
+        });
+      }
 
       for (let idx = 0; idx < insights.length; idx += batchSize) {
         const slice = insights.slice(idx, idx + batchSize);
