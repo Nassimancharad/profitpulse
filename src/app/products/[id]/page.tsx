@@ -162,8 +162,6 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   const overflowActions = (
     <OverflowMenu
       shopDomain={product.shop.shopDomain}
-      embeddedHref={`/app?shop=${encodeURIComponent(product.shop.shopDomain)}`}
-      connectionsHref="/settings"
     />
   );
 
