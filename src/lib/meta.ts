@@ -120,12 +120,14 @@ export async function fetchMetaDailySpend(
   accessToken: string,
   startDate: Date,
   endDate: Date,
+  options: FetchOptions = {},
 ): Promise<MetaInsight[]> {
-  const url = new URL(`${META_GRAPH_API}/${encodeURIComponent(adAccountId)}/insights`);
-  url.searchParams.set("access_token", accessToken);
-  url.searchParams.set("time_increment", "1");
-  url.searchParams.set("fields", "spend,campaign_id,adset_id,ad_id,date_start,date_stop");
-  url.searchParams.set(
+  const results: MetaInsight[] = [];
+  const baseUrl = new URL(`${META_GRAPH_API}/${encodeURIComponent(adAccountId)}/insights`);
+  baseUrl.searchParams.set("access_token", accessToken);
+  baseUrl.searchParams.set("time_increment", "1");
+  baseUrl.searchParams.set("fields", "spend,campaign_id,adset_id,ad_id,date_start,date_stop");
+  baseUrl.searchParams.set(
     "time_range",
     JSON.stringify({
       since: startDate.toISOString().slice(0, 10),
@@ -133,22 +135,40 @@ export async function fetchMetaDailySpend(
     }),
   );
 
-  const res = await fetchWithTimeout(url.toString(), { method: "GET" });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Meta insights fetch failed (${res.status}): ${body}`);
+  let nextUrl: string | null = baseUrl.toString();
+  let pageCount = 0;
+
+  while (nextUrl) {
+    const res = await fetchWithTimeout(nextUrl, { method: "GET" }, options.timeoutMs);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Meta insights fetch failed (${res.status}): ${body}`);
+    }
+
+    const json = (await res.json()) as {
+      data?: Record<string, string>[];
+      paging?: { next?: string };
+    };
+    const rows = json.data ?? [];
+
+    results.push(
+      ...rows.map((row) => ({
+        date: row.date_start,
+        spend: Number(row.spend ?? 0),
+        campaignId: row.campaign_id ?? null,
+        adsetId: row.adset_id ?? null,
+        adId: row.ad_id ?? null,
+      })),
+    );
+
+    nextUrl = json.paging?.next ?? null;
+    pageCount += 1;
+    if (options.maxPages && pageCount >= options.maxPages) {
+      break;
+    }
   }
 
-  const json = (await res.json()) as { data?: Record<string, string>[] };
-  const rows = json.data ?? [];
-
-  return rows.map((row) => ({
-    date: row.date_start,
-    spend: Number(row.spend ?? 0),
-    campaignId: row.campaign_id ?? null,
-    adsetId: row.adset_id ?? null,
-    adId: row.ad_id ?? null,
-  }));
+  return results;
 }
 
 export type MetaCampaign = {
