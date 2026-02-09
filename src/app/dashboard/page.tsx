@@ -2,7 +2,8 @@ import { AppShell } from '@/components/AppShell';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import prisma from '@/lib/prisma';
-import { getAdSpendPerProduct } from '@/lib/adAttribution';
+import { getAdSpendPerProduct, type ProductAdSpend } from '@/lib/adAttribution';
+import type { Prisma } from '@prisma/client';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -20,6 +21,11 @@ const roasFormatter = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 2,
 });
+
+type OrderLineWithProduct = Prisma.OrderLineGetPayload<{
+  include: { product: true };
+}>;
+type AdSpendRow = Prisma.AdSpendGetPayload<{}>;
 
 type DashboardProps = {
   searchParams?: { start?: string; end?: string };
@@ -51,7 +57,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const startDate = atStartOfDay(parsedStart);
   const endDate = atEndOfDay(parsedEnd);
 
-  const [orderLines, totalOrders, adSpends, productAdSpends] = await Promise.all([
+  const [orderLines, totalOrders, adSpends, productAdSpends]: [
+    OrderLineWithProduct[],
+    number,
+    AdSpendRow[],
+    ProductAdSpend[],
+  ] = await Promise.all([
     prisma.orderLine.findMany({
       where: {
         order: {
@@ -78,15 +89,15 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     getAdSpendPerProduct(shop.id, startDate, endDate),
   ]);
 
-  const totalRevenue = orderLines.reduce((sum: number, line: { lineRevenue: number }) => sum + line.lineRevenue, 0);
-  const totalUnits = orderLines.reduce((sum: number, line: { quantity: number }) => sum + line.quantity, 0);
-  const totalCost = orderLines.reduce((sum: number, line: { quantity: number; product?: { costPerUnit?: number | null } | null }) => {
+  const totalRevenue = orderLines.reduce((sum, line) => sum + line.lineRevenue, 0);
+  const totalUnits = orderLines.reduce((sum, line) => sum + line.quantity, 0);
+  const totalCost = orderLines.reduce((sum, line) => {
     if (line.product?.costPerUnit != null) {
       return sum + line.quantity * line.product.costPerUnit;
     }
     return sum;
   }, 0);
-  const totalAdSpend = adSpends.reduce((sum: number, spend: { amountSpent: number }) => sum + spend.amountSpent, 0);
+  const totalAdSpend = adSpends.reduce((sum, spend) => sum + spend.amountSpent, 0);
   const profit = totalRevenue - totalCost - totalAdSpend;
   const profitMargin = totalRevenue > 0 ? profit / totalRevenue : 0;
   const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : null;

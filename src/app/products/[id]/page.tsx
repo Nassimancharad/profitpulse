@@ -7,6 +7,7 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ProductCostEditor } from './ProductCostEditor';
 import { ProductCampaignLinker } from './ProductCampaignLinker';
+import type { Prisma } from '@prisma/client';
 
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -24,6 +25,14 @@ const roasFormatter = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 2,
 });
+
+type OrderLineWithOrderProduct = Prisma.OrderLineGetPayload<{
+  include: { order: true; product: true };
+}>;
+type AdSpendAmount = Prisma.AdSpendGetPayload<{ select: { amountSpent: true } }>;
+type CampaignIdRow = Prisma.AdSpendGetPayload<{ select: { campaignId: true } }>;
+type LinkedCampaignRow = Prisma.CampaignProductGetPayload<{ select: { campaignId: true } }>;
+type MetaCampaignRow = Prisma.MetaCampaignGetPayload<{ select: { campaignId: true; name: true } }>;
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -76,7 +85,12 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   const startDate = atStartOfDay(parsedStart);
   const endDate = atEndOfDay(parsedEnd);
 
-  const [orderLines, adSpends, campaignRows, linkedCampaignsRaw] = await Promise.all([
+  const [orderLines, adSpends, campaignRows, linkedCampaignsRaw]: [
+    OrderLineWithOrderProduct[],
+    AdSpendAmount[],
+    CampaignIdRow[],
+    LinkedCampaignRow[],
+  ] = await Promise.all([
     prisma.orderLine.findMany({
       where: {
         productId: product.id,
@@ -104,39 +118,23 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
     }),
   ]);
 
-  let campaignMeta: { campaignId: string; name: string | null }[] = [];
-  const metaCampaignClient = (prisma as any).metaCampaign;
-  if (metaCampaignClient?.findMany) {
-    campaignMeta = await metaCampaignClient.findMany({
-      where: { shopId: product.shopId },
-      select: { campaignId: true, name: true },
-      orderBy: [{ name: "asc" }],
-    });
-  }
+  const campaignMeta: MetaCampaignRow[] = await prisma.metaCampaign.findMany({
+    where: { shopId: product.shopId },
+    select: { campaignId: true, name: true },
+    orderBy: [{ name: "asc" }],
+  });
 
-  const totalRevenue = orderLines.reduce(
-    (sum: number, line: { lineRevenue: number }) => sum + line.lineRevenue,
-    0,
-  );
-  const totalUnits = orderLines.reduce(
-    (sum: number, line: { quantity: number }) => sum + line.quantity,
-    0,
-  );
-  const totalCost = orderLines.reduce(
-    (sum: number, line: { quantity: number; product?: { costPerUnit?: number | null } | null }) => {
+  const totalRevenue = orderLines.reduce((sum, line) => sum + line.lineRevenue, 0);
+  const totalUnits = orderLines.reduce((sum, line) => sum + line.quantity, 0);
+  const totalCost = orderLines.reduce((sum, line) => {
     if (line.product?.costPerUnit != null) {
       return sum + line.quantity * line.product.costPerUnit;
     }
     return sum;
-  },
-    0,
-  );
-  const totalAdSpend = adSpends.reduce(
-    (sum: number, spend: { amountSpent: number }) => sum + spend.amountSpent,
-    0,
-  );
+  }, 0);
+  const totalAdSpend = adSpends.reduce((sum, spend) => sum + spend.amountSpent, 0);
   const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : null;
-  const linkedCampaigns = linkedCampaignsRaw.map((c: { campaignId: string }) => c.campaignId);
+  const linkedCampaigns = linkedCampaignsRaw.map((c) => c.campaignId);
   const availableCampaigns =
     campaignMeta.length > 0
       ? campaignMeta.map((c) => ({
@@ -144,9 +142,9 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
           label: c.name || c.campaignId,
         }))
       : campaignRows
-          .map((c: { campaignId: string | null }) => c.campaignId)
-          .filter((id: string | null): id is string => Boolean(id))
-          .map((id: string) => ({ id, label: id }));
+          .map((c) => c.campaignId)
+          .filter((id): id is string => Boolean(id))
+          .map((id) => ({ id, label: id }));
   const profit = totalRevenue - totalCost - totalAdSpend;
   const profitMargin = totalRevenue > 0 ? profit / totalRevenue : 0;
   const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
