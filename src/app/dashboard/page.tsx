@@ -78,15 +78,15 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     getAdSpendPerProduct(shop.id, startDate, endDate),
   ]);
 
-  const totalRevenue = orderLines.reduce((sum, line) => sum + line.lineRevenue, 0);
-  const totalUnits = orderLines.reduce((sum, line) => sum + line.quantity, 0);
-  const totalCost = orderLines.reduce((sum, line) => {
+  const totalRevenue = orderLines.reduce<number>((sum, line) => sum + line.lineRevenue, 0);
+  const totalUnits = orderLines.reduce<number>((sum, line) => sum + line.quantity, 0);
+  const totalCost = orderLines.reduce<number>((sum, line) => {
     if (line.product?.costPerUnit != null) {
       return sum + line.quantity * line.product.costPerUnit;
     }
     return sum;
   }, 0);
-  const totalAdSpend = adSpends.reduce((sum, spend) => sum + spend.amountSpent, 0);
+  const totalAdSpend = adSpends.reduce<number>((sum, spend) => sum + spend.amountSpent, 0);
   const profit = totalRevenue - totalCost - totalAdSpend;
   const profitMargin = totalRevenue > 0 ? profit / totalRevenue : 0;
   const roas = totalAdSpend > 0 ? totalRevenue / totalAdSpend : null;
