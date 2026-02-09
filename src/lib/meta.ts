@@ -1,6 +1,12 @@
 const META_API_VERSION = "v21.0";
 const META_OAUTH_DIALOG = `https://www.facebook.com/${META_API_VERSION}/dialog/oauth`;
 const META_GRAPH_API = `https://graph.facebook.com/${META_API_VERSION}`;
+const META_REQUEST_TIMEOUT_MS = 10_000;
+
+type FetchOptions = {
+  timeoutMs?: number;
+  maxPages?: number;
+};
 
 type MetaEnv = {
   appId: string;
@@ -10,14 +16,18 @@ type MetaEnv = {
 
 export function getMetaEnv(): MetaEnv {
   const { META_APP_ID, META_APP_SECRET, META_REDIRECT_URI } = process.env;
-  const missing = [];
+  const missing: string[] = [];
   if (!META_APP_ID) missing.push("META_APP_ID");
   if (!META_APP_SECRET) missing.push("META_APP_SECRET");
   if (!META_REDIRECT_URI) missing.push("META_REDIRECT_URI");
   if (missing.length) {
     throw new Error(`Missing Meta env vars: ${missing.join(", ")}`);
   }
-  return { appId: META_APP_ID, appSecret: META_APP_SECRET, redirectUri: META_REDIRECT_URI };
+  return {
+    appId: META_APP_ID!,
+    appSecret: META_APP_SECRET!,
+    redirectUri: META_REDIRECT_URI!,
+  };
 }
 
 export function buildMetaAuthUrl(state: string, scope = "ads_read"): string {
@@ -39,7 +49,7 @@ export async function exchangeCodeForShortLivedToken(code: string): Promise<stri
   url.searchParams.set("redirect_uri", env.redirectUri);
   url.searchParams.set("code", code);
 
-  const res = await fetch(url.toString(), { method: "GET" });
+  const res = await fetchWithTimeout(url.toString(), { method: "GET" });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Meta token exchange failed (${res.status}): ${body}`);
@@ -60,7 +70,7 @@ export async function exchangeForLongLivedToken(shortLivedToken: string): Promis
   url.searchParams.set("client_secret", env.appSecret);
   url.searchParams.set("fb_exchange_token", shortLivedToken);
 
-  const res = await fetch(url.toString(), { method: "GET" });
+  const res = await fetchWithTimeout(url.toString(), { method: "GET" });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Meta long-lived exchange failed (${res.status}): ${body}`);
@@ -83,7 +93,7 @@ export async function fetchMetaAdAccounts(accessToken: string): Promise<MetaAdAc
   url.searchParams.set("access_token", accessToken);
   url.searchParams.set("fields", "id,name");
 
-  const res = await fetch(url.toString(), { method: "GET" });
+  const res = await fetchWithTimeout(url.toString(), { method: "GET" });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`Meta ad accounts fetch failed (${res.status}): ${body}`);
@@ -110,12 +120,14 @@ export async function fetchMetaDailySpend(
   accessToken: string,
   startDate: Date,
   endDate: Date,
+  options: FetchOptions = {},
 ): Promise<MetaInsight[]> {
-  const url = new URL(`${META_GRAPH_API}/${encodeURIComponent(adAccountId)}/insights`);
-  url.searchParams.set("access_token", accessToken);
-  url.searchParams.set("time_increment", "1");
-  url.searchParams.set("fields", "spend,campaign_id,adset_id,ad_id,date_start,date_stop");
-  url.searchParams.set(
+  const results: MetaInsight[] = [];
+  const baseUrl = new URL(`${META_GRAPH_API}/${encodeURIComponent(adAccountId)}/insights`);
+  baseUrl.searchParams.set("access_token", accessToken);
+  baseUrl.searchParams.set("time_increment", "1");
+  baseUrl.searchParams.set("fields", "spend,campaign_id,adset_id,ad_id,date_start,date_stop");
+  baseUrl.searchParams.set(
     "time_range",
     JSON.stringify({
       since: startDate.toISOString().slice(0, 10),
@@ -123,22 +135,40 @@ export async function fetchMetaDailySpend(
     }),
   );
 
-  const res = await fetch(url.toString(), { method: "GET" });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Meta insights fetch failed (${res.status}): ${body}`);
+  let nextUrl: string | null = baseUrl.toString();
+  let pageCount = 0;
+
+  while (nextUrl) {
+    const res = await fetchWithTimeout(nextUrl, { method: "GET" }, options.timeoutMs);
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Meta insights fetch failed (${res.status}): ${body}`);
+    }
+
+    const json = (await res.json()) as {
+      data?: Record<string, string>[];
+      paging?: { next?: string };
+    };
+    const rows = json.data ?? [];
+
+    results.push(
+      ...rows.map((row) => ({
+        date: row.date_start,
+        spend: Number(row.spend ?? 0),
+        campaignId: row.campaign_id ?? null,
+        adsetId: row.adset_id ?? null,
+        adId: row.ad_id ?? null,
+      })),
+    );
+
+    nextUrl = json.paging?.next ?? null;
+    pageCount += 1;
+    if (options.maxPages && pageCount >= options.maxPages) {
+      break;
+    }
   }
 
-  const json = (await res.json()) as { data?: Record<string, string>[] };
-  const rows = json.data ?? [];
-
-  return rows.map((row) => ({
-    date: row.date_start,
-    spend: Number(row.spend ?? 0),
-    campaignId: row.campaign_id ?? null,
-    adsetId: row.adset_id ?? null,
-    adId: row.ad_id ?? null,
-  }));
+  return results;
 }
 
 export type MetaCampaign = {
@@ -154,14 +184,16 @@ export type MetaCampaign = {
 export async function fetchMetaCampaigns(
   adAccountId: string,
   accessToken: string,
+  options: FetchOptions = {},
 ): Promise<MetaCampaign[]> {
   const results: MetaCampaign[] = [];
   let nextUrl: string | null = `${META_GRAPH_API}/${encodeURIComponent(
     adAccountId,
   )}/campaigns?fields=id,name,objective&access_token=${encodeURIComponent(accessToken)}&limit=200`;
+  let pageCount = 0;
 
   while (nextUrl) {
-    const res = await fetch(nextUrl, { method: "GET" });
+    const res = await fetchWithTimeout(nextUrl, { method: "GET" }, options.timeoutMs);
     if (!res.ok) {
       const body = await res.text();
       throw new Error(`Meta campaigns fetch failed (${res.status}): ${body}`);
@@ -174,7 +206,16 @@ export async function fetchMetaCampaigns(
       results.push(...json.data);
     }
     nextUrl = json.paging?.next ?? null;
+    pageCount += 1;
+    if (options.maxPages && pageCount >= options.maxPages) {
+      break;
+    }
   }
 
   return results;
+}
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = META_REQUEST_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timeoutId));
 }
