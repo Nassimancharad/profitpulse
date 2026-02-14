@@ -3,6 +3,7 @@ import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { KpiTwoPanelChart } from '@/components/KpiTwoPanelChart';
 import { SyncNowButton } from '@/components/SyncNowButton';
+import { SyncStatusPanel } from '@/components/SyncStatusPanel';
 import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
 import { type AdSpendInput } from '@/lib/profit';
@@ -100,6 +101,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     portfolioAdAllocations,
     portfolioAdAllocationsByDate,
     expenses,
+    syncStates,
   ] = await Promise.all([
     prisma.orderLine.findMany({
       where: {
@@ -187,6 +189,11 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
             startDate: true,
             endDate: true,
           },
+        })
+      : Promise.resolve([]),
+    activeShop
+      ? prisma.syncState.findMany({
+          where: { shopId: activeShop.id },
         })
       : Promise.resolve([]),
   ]);
@@ -561,6 +568,10 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         />
 
         <KpiStrip items={kpiStripItems} partialData={!hasAdSpend} />
+
+        {activeShop ? (
+          <SyncStatusPanel shopDomain={activeShop.shopDomain} states={syncStates} />
+        ) : null}
 
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 xl:col-span-8 space-y-6">
