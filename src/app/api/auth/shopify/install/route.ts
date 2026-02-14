@@ -12,10 +12,12 @@ function getEnv() {
     throw new Error(`Missing required env vars: ${missing.join(", ")}`);
   }
 
+  const normalize = (url: string) => url.replace(/\/+$/, "");
+
   return {
     apiKey: process.env.SHOPIFY_API_KEY!,
     scopes: process.env.SHOPIFY_SCOPES!,
-    appUrl: process.env.SHOPIFY_APP_URL!,
+    appUrl: normalize(process.env.SHOPIFY_APP_URL!),
   };
 }
 
@@ -48,12 +50,13 @@ function buildRedirectUrl(shop: string, state: string, env: ReturnType<typeof ge
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const shop = searchParams.get("shop");
+  const origin = new URL(request.url).origin;
+  const appBase =
+    process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") ||
+    origin;
 
   if (!isValidShopDomain(shop)) {
-    return NextResponse.json(
-      { error: "Missing or invalid shop param. Expected mystore.myshopify.com" },
-      { status: 400 },
-    );
+    return NextResponse.redirect(`${appBase}/connections?shopify=invalid_shop`);
   }
 
   let env;

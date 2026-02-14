@@ -1,8 +1,14 @@
 import prisma from "@/lib/prisma";
+import { calculateNetRevenueForOrder } from "@/lib/profit";
 
 export type ProductAdSpend = {
   productId: string;
   totalAdSpend: number;
+};
+
+export type ProductRevenueLine = {
+  productId: string;
+  lineRevenue: number;
 };
 
 function atStartOfDay(date: Date) {
@@ -49,14 +55,37 @@ export async function getAdSpendPerProduct(shopId: string, start: Date, end: Dat
     return [];
   }
 
+  return allocateAdSpendToProducts(
+    orderLines.map((line) => ({
+      productId: line.productId,
+      lineRevenue: line.lineRevenue,
+    })),
+    totalAdSpend,
+  );
+}
+
+export function allocateAdSpendToProducts(
+  orderLines: ProductRevenueLine[],
+  totalAdSpend: number,
+): ProductAdSpend[] {
+  if (totalAdSpend <= 0) {
+    return [];
+  }
+
   const revenueByProduct = new Map<string, number>();
   for (const line of orderLines) {
     revenueByProduct.set(line.productId, (revenueByProduct.get(line.productId) ?? 0) + line.lineRevenue);
   }
 
-  const totalRevenue = Array.from(revenueByProduct.values()).reduce((sum, val) => sum + val, 0);
+  const totalRevenue = Array.from(revenueByProduct.values()).reduce((sum, val) => {
+    return sum + calculateNetRevenueForOrder({
+      productRevenue: val,
+      shippingRevenue: 0,
+      refundedProductAmount: 0,
+      refundedShippingAmount: 0,
+    });
+  }, 0);
   if (totalRevenue === 0) {
-    // No revenue; cannot allocate. Return empty mapping.
     return [];
   }
 

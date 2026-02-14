@@ -19,6 +19,8 @@ model Shop {
   installedAt DateTime
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  paymentFeePct Float    @default(0)
+  paymentFeeFixed Float  @default(0)
 
   products    Product[]
   orders      Order[]
@@ -26,6 +28,9 @@ model Shop {
   metaAdAccounts MetaAdAccount[]
   campaignProducts CampaignProduct[]
   metaCampaigns MetaCampaign[]
+  shippingCostRules ShippingCostRule[]
+  expenses    Expense[]
+  syncStates  SyncState[]
 }
 
 model Product {
@@ -50,10 +55,45 @@ model Order {
   shopifyOrderId String
   createdAt      DateTime
   totalPrice     Float
+  shippingRevenue Float    @default(0)
+  shippingCost    Float?
+  shippingCountryCode String?
+  refundedProductAmount Float @default(0)
+  refundedShippingAmount Float @default(0)
+  paymentFeeActual Float?
 
   orderLines     OrderLine[]
 
   @@unique([shopId, shopifyOrderId])
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  shop      Shop?    @relation(fields: [shopId], references: [id])
+  shopId    String?
+  name      String
+  amount    Float
+  frequency String
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+}
+
+model ShippingCostRule {
+  id            String   @id @default(cuid())
+  shop          Shop     @relation(fields: [shopId], references: [id])
+  shopId        String
+  countryCode   String?
+  minOrderValue Float?
+  maxOrderValue Float?
+  costAmount    Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([shopId])
 }
 
 model OrderLine {
@@ -122,4 +162,36 @@ model MetaCampaign {
 
   @@unique([shopId, campaignId])
   @@index([shopId, adAccountId])
+}
+
+enum SyncResource {
+  SHOPIFY
+  SHOPIFY_PAYMENTS
+  META
+}
+
+enum SyncStatus {
+  IDLE
+  RUNNING
+  OK
+  ERROR
+}
+
+model SyncState {
+  id             String       @id @default(cuid())
+  shop           Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId         String
+  resource       SyncResource
+  status         SyncStatus   @default(IDLE)
+  lastSyncedAt   DateTime?
+  lastStartedAt  DateTime?
+  lastFinishedAt DateTime?
+  lockedAt       DateTime?
+  lockExpiresAt  DateTime?
+  error          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([shopId, resource])
+  @@index([shopId, status])
 }

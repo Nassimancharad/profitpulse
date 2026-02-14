@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 type PageTopBarProps = {
   title: string;
   subtitle?: string;
+  leadingAction?: ReactNode;
   /**
    * Primary control, e.g. a date range picker. Should be concise and keyboard accessible.
    */
@@ -24,36 +25,36 @@ type PageTopBarProps = {
   /**
    * Future overflow / menu content.
    */
-  overflowActions?: ReactNode;
 };
 
 export function PageTopBar({
   title,
   subtitle,
+  leadingAction,
   timeControl,
   periodLabel,
   shopLabel,
   secondaryActions,
-  overflowActions,
 }: PageTopBarProps) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0 space-y-2">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-3">
-          <h1 className="truncate text-[28px] font-semibold leading-[1.1] text-white sm:text-[30px]">
+    <div className="flex min-h-10 min-w-0 flex-col justify-center gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0 flex min-h-10 flex-col justify-center gap-1">
+        <div className="flex min-w-0 items-center gap-3">
+          {leadingAction ? <div className="flex h-10 items-center">{leadingAction}</div> : null}
+          <h1 className="truncate text-[28px] font-semibold leading-[1] text-[color:var(--pp-foreground)] sm:text-[30px]">
             {title}
           </h1>
-          {subtitle ? <p className="text-sm text-slate-300">{subtitle}</p> : null}
+          {subtitle ? <p className="truncate text-sm text-[color:var(--pp-muted)]">{subtitle}</p> : null}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center self-center gap-2 whitespace-nowrap sm:justify-end sm:gap-2.5">
-        {overflowActions ? <div className="shrink-0">{overflowActions}</div> : null}
+      <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
+        {secondaryActions ? <div className="w-full min-w-0 sm:w-auto">{secondaryActions}</div> : null}
 
         {timeControl ? (
-          <div className="shrink-0">{timeControl}</div>
-        ) : periodLabel ? (
-          <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-slate-100">
+          <div className="w-full min-w-0 sm:w-auto">{timeControl}</div>
+        ) : periodLabel && periodLabel !== "—" ? (
+          <span className="pp-badge glass-inset w-full px-3.5 py-1.5 sm:w-auto">
             {periodLabel}
           </span>
         ) : null}

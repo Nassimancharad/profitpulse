@@ -109,7 +109,7 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
-        className="inline-flex h-10 max-w-[220px] items-center gap-2 rounded-xl border border-white/12 bg-white/5 px-4 text-sm font-medium leading-tight text-white transition hover:border-white/20 hover:bg-white/10 sm:max-w-[260px] md:max-w-[340px]"
+        className="pp-btn pp-btn-primary h-10 w-full min-w-0 max-w-full overflow-hidden px-4 text-sm font-medium leading-tight sm:w-auto sm:max-w-[260px] md:max-w-[340px]"
         aria-haspopup="menu"
         aria-expanded={menuOpen}
       >
@@ -120,7 +120,7 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.6"
-          className="h-3.5 w-3.5 text-slate-200/90"
+          className="h-3.5 w-3.5 text-[color:var(--pp-muted)]"
           aria-hidden
         >
           <path d="m6 9 6 6 6-6" />
@@ -129,7 +129,7 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
 
       {menuOpen ? (
         <div
-          className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border border-white/10 bg-[var(--pp-bg)]/95 p-2 shadow-2xl shadow-black/40 backdrop-blur"
+          className="pp-card glass-surface--strong absolute right-0 z-50 mt-2 w-64 p-2 shadow-2xl shadow-black/15"
           role="menu"
         >
           <div className="space-y-1 py-1">
@@ -149,27 +149,27 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
         <Dialog onClose={() => setDialogOpen(false)} isMobile={isMobile}>
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold text-white">Custom date range</h2>
-              <p className="text-sm text-slate-300">Choose a start and end date.</p>
+              <h2 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Custom date range</h2>
+              <p className="text-sm text-[color:var(--pp-muted)]">Choose a start and end date.</p>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="text-xs text-slate-300">
+              <label className="text-xs text-[color:var(--pp-muted)]">
                 From
                 <input
                   ref={startInputRef}
                   type="date"
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/12 bg-[var(--pp-bg)] px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200 focus:ring-2 focus:ring-cyan-200/30"
+                  className="pp-input mt-1"
                 />
               </label>
-              <label className="text-xs text-slate-300">
+              <label className="text-xs text-[color:var(--pp-muted)]">
                 To
                 <input
                   type="date"
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-white/12 bg-[var(--pp-bg)] px-3 py-2 text-sm text-white outline-none transition focus:border-cyan-200 focus:ring-2 focus:ring-cyan-200/30"
+                  className="pp-input mt-1"
                 />
               </label>
             </div>
@@ -177,14 +177,14 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
               <button
                 type="button"
                 onClick={() => setDialogOpen(false)}
-                className="rounded-lg border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/10"
+                className="pp-btn pp-btn-secondary glass-inset px-3.5 py-2 text-sm"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={applyCustom}
-                className="rounded-lg border border-cyan-200/50 bg-cyan-200/20 px-3.5 py-2 text-sm font-semibold text-white transition hover:border-cyan-200/70 hover:bg-cyan-200/30"
+                className="pp-btn pp-btn-primary px-3.5 py-2 text-sm"
               >
                 Apply
               </button>
@@ -211,8 +211,8 @@ function PresetButton({
       onClick={onClick}
       className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm leading-tight transition ${
         active
-          ? "border border-white/20 bg-white/10 text-white"
-          : "text-slate-200 hover:border-white/15 hover:bg-white/5"
+          ? "glass-inset border border-[color:var(--pp-border)] bg-white/60 text-[color:var(--pp-foreground)]"
+          : "text-[color:var(--pp-muted)] hover:border hover:border-[color:var(--pp-border)] hover:bg-white/50"
       }`}
       role="menuitem"
     >
@@ -260,7 +260,7 @@ function Dialog({ children, onClose, isMobile }: DialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-black/50"
+        className="pp-modal-overlay absolute inset-0 bg-black/50"
         aria-hidden
         onClick={onClose}
       />
@@ -268,7 +268,7 @@ function Dialog({ children, onClose, isMobile }: DialogProps) {
         ref={contentRef}
         role="dialog"
         aria-modal="true"
-        className={`relative w-full max-w-lg rounded-2xl border border-white/10 bg-[var(--pp-bg)]/95 p-6 shadow-2xl shadow-black/50 backdrop-blur ${
+        className={`pp-modal glass-inset relative w-full max-w-lg p-6 shadow-2xl shadow-black/15 ${
           isMobile ? "mx-4 self-end pb-8" : ""
         }`}
       >

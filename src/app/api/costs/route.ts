@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { logError } from "@/observability";
 
 export async function POST(request: Request) {
   try {
@@ -40,7 +41,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("Failed to update cost", error);
+    logError("update_cost_failed", {
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

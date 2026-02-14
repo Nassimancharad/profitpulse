@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "refundedProductAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "refundedShippingAmount" DOUBLE PRECISION NOT NULL DEFAULT 0;

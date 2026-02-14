@@ -10,7 +10,9 @@ export default function AppPage({ searchParams }: AppPageProps) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 text-zinc-900">
       <div className="w-full max-w-2xl rounded-xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold">ProfitPulse</h1>
+        <div className="flex items-center text-xl font-semibold text-zinc-900">
+          ProfitPulse
+        </div>
         <p className="mt-2 text-sm text-zinc-600">
           Embedded app landing page. OAuth succeeded if you see this.
         </p>

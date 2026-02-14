@@ -69,18 +69,18 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur">
+    <div className="pp-card glass-surface p-5">
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white">Campaign links</h3>
-          <p className="text-sm text-slate-300">Connect ad campaigns to this product.</p>
+          <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Campaign links</h3>
+          <p className="text-sm text-[color:var(--pp-muted)]">Connect ad campaigns to this product.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {shopDomain ? (
             <button
               type="button"
               onClick={refreshCampaigns}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:border-white/30 hover:bg-white/15"
+              className="pp-btn pp-btn-secondary glass-inset px-3 py-2 text-xs"
             >
               {syncStatus === "loading"
                 ? "Refreshing…"
@@ -100,7 +100,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+              className="pp-btn pp-btn-primary px-3 py-2 text-xs"
             >
               {saving ? "Saving…" : "Save"}
             </button>
@@ -109,7 +109,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
       </div>
       {showList ? (
         campaigns.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-200">
+          <div className="glass-inset mt-4 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-3 py-2 text-sm text-[color:var(--pp-muted)]">
             No campaigns found after refresh. Make sure ad spend has campaign IDs.
           </div>
         ) : (
@@ -120,7 +120,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
               return (
                 <label
                   key={campaign.id}
-                  className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white transition hover:border-white/20 hover:bg-white/[0.06]"
+                  className="flex items-center justify-between rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-3 py-2 text-sm text-[color:var(--pp-foreground)] transition hover:border-[color:rgba(242,122,40,0.25)] hover:bg-white/70"
                 >
                   <div className="flex items-center gap-2">
                     <input
@@ -128,18 +128,18 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
                       checked={isLinked}
                       onChange={() => toggle(campaign.id)}
                       disabled={isBusy}
-                      className="h-4 w-4 rounded border-white/20 bg-[var(--pp-bg)] text-cyan-300 focus:ring-1 focus:ring-cyan-200"
+                      className="h-4 w-4 rounded border-[color:var(--pp-border)] bg-white text-[color:var(--pp-accent)] focus:ring-2 focus:ring-[rgba(242,122,40,0.35)]"
                     />
                     <span>{campaign.label}</span>
                   </div>
-                  <span className="text-xs text-slate-300">{isLinked ? "Linked" : "Link"}</span>
+                  <span className="text-xs text-[color:var(--pp-muted)]">{isLinked ? "Linked" : "Link"}</span>
                 </label>
               );
             })}
           </div>
         )
       ) : (
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-200">
+        <div className="glass-inset mt-4 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-3 py-2 text-sm text-[color:var(--pp-muted)]">
           Load campaigns to link them to this product.
         </div>
       )}
@@ -160,13 +160,13 @@ function LinkedSummary({
     return null;
   }
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-slate-200">
-      <div className="font-semibold text-white">Linked campaigns</div>
+    <div className="glass-inset mt-3 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-3 py-2 text-xs text-[color:var(--pp-muted)]">
+      <div className="font-semibold text-[color:var(--pp-foreground)]">Linked campaigns</div>
       <div className="mt-1 flex flex-wrap gap-2">
         {linked.map((c) => (
           <span
             key={c.id}
-            className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[11px] text-white"
+            className="pp-badge glass-inset px-2 py-0.5 text-[11px] text-[color:var(--pp-foreground)]"
           >
             {c.label}
           </span>

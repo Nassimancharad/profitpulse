@@ -14,6 +14,9 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/products", label: "Products" },
+  { href: "/costs", label: "Costs" },
+  { href: "/connections", label: "Connections" },
+  { href: "/preferences", label: "Preferences" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -38,6 +41,10 @@ type AppShellProps = {
    * Overflow menu / tertiary actions.
    */
   overflowActions?: ReactNode;
+  /**
+   * Keep the filter/actions row sticky below the header.
+   */
+  filtersSticky?: boolean;
   children: ReactNode;
 };
 
@@ -50,6 +57,7 @@ export function AppShell({
   secondaryActions,
   actions,
   overflowActions,
+  filtersSticky = false,
   children,
 }: AppShellProps) {
   const pathname = usePathname();
@@ -63,24 +71,28 @@ export function AppShell({
   }, [pathname]);
 
   return (
-    <div className="min-h-screen bg-[var(--pp-bg)] text-slate-50">
-      <div className="flex min-h-screen">
-        <aside className="hidden w-64 flex-shrink-0 flex-col border-r border-white/10 bg-white/5 px-4 py-6 backdrop-blur lg:flex">
-          <div className="px-2">
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">
+    <div className="min-h-screen w-full bg-[var(--pp-bg)] text-[color:var(--pp-foreground)]">
+      <div className="flex min-h-screen w-full">
+        <aside className="hidden w-64 flex-shrink-0 flex-col bg-[var(--pp-surface-glass-subtle)] px-4 py-6 backdrop-blur lg:flex">
+          <div className="rounded-3xl border border-[color:var(--pp-border)] bg-white/70 px-4 py-4 shadow-[0_12px_30px_-18px_rgba(17,18,22,0.35)]">
+            <div className="text-lg font-semibold text-[color:var(--pp-foreground)]">
               ProfitPulse
-            </p>
-            <h1 className="mt-2 text-xl font-semibold text-white">Analytics</h1>
+            </div>
           </div>
-          <nav className="mt-8 space-y-1">
+          <p className="mt-4 px-2 text-xs uppercase tracking-[0.3em] text-[color:var(--pp-muted)]">
+            Analytics
+          </p>
+          <nav className="mt-4 space-y-1">
             {NAV_ITEMS.map((item) => {
               const isActive = activeHref === item.href;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-white/10 ${
-                    isActive ? "bg-white/10 text-white" : "text-slate-200"
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-white/60 ${
+                    isActive
+                      ? "glass-inset border border-[color:var(--pp-border)] bg-white/70 text-[color:var(--pp-foreground)]"
+                      : "text-[color:var(--pp-muted)]"
                   }`}
                 >
                   <span>{item.label}</span>
@@ -90,32 +102,54 @@ export function AppShell({
           </nav>
         </aside>
 
-        <div className="flex min-h-screen flex-1 flex-col">
-          <header className="sticky top-0 z-30 bg-[var(--pp-bg)]/85 shadow-[0_12px_30px_-18px_rgba(0,0,0,0.6)] backdrop-blur">
-            <div className="flex items-center gap-3 px-4 py-6 sm:px-6 sm:py-6 lg:px-8">
-              <button
-                type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5 text-lg text-white transition hover:border-white/30 lg:hidden"
-                aria-label="Open navigation"
-                onClick={() => setMobileNavOpen(true)}
-              >
-                ☰
-              </button>
-              <div className="flex-1">
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+          <header className="sticky top-0 z-30 bg-[var(--pp-bg)]/80 shadow-[0_12px_30px_-18px_rgba(17,18,22,0.25)] backdrop-blur">
+            <div className="flex min-w-0 items-center gap-3 px-4 py-6 sm:px-6 sm:py-6 lg:px-8">
+              <div className="min-w-0 flex-1">
                 <PageTopBar
                   title={title}
                   subtitle={subtitle}
-                  timeControl={timeControl}
-                  periodLabel={periodLabel}
-                  secondaryActions={secondaryActions ?? actions}
-                  overflowActions={overflowActions}
+                  leadingAction={
+                    <button
+                      type="button"
+                      className="pp-btn pp-btn-secondary glass-inset h-10 w-10 text-lg lg:hidden"
+                      aria-label="Open navigation"
+                      onClick={() => setMobileNavOpen(true)}
+                    >
+                      ☰
+                    </button>
+                  }
                 />
               </div>
             </div>
           </header>
 
           <main className="flex-1 pb-24">
-            <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+              {secondaryActions || timeControl || (periodLabel && periodLabel !== "—") ? (
+                <div
+                  className={`my-6 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3 ${
+                    filtersSticky
+                      ? "sticky top-20 z-20 rounded-2xl border border-[color:var(--pp-border)] bg-[var(--pp-bg)]/85 px-3 py-3 backdrop-blur"
+                      : ""
+                  }`}
+                >
+                  {secondaryActions ?? actions ? (
+                    <div className="w-full min-w-0 sm:w-auto">{secondaryActions ?? actions}</div>
+                  ) : null}
+                  {timeControl ? (
+                    <div className="w-full min-w-0 sm:w-auto">{timeControl}</div>
+                  ) : null}
+                  {overflowActions ? (
+                    <div className="w-full min-w-0 sm:w-auto">{overflowActions}</div>
+                  ) : null}
+                  {!timeControl && periodLabel && periodLabel !== "—" ? (
+                    <span className="pp-badge glass-inset w-full px-3.5 py-1.5 sm:w-auto">
+                      {periodLabel}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               {children}
             </div>
           </main>
@@ -141,41 +175,40 @@ function MobileNav({ open, onClose, activeHref }: MobileNavProps) {
   return (
     <>
       <div
-        className={`fixed inset-0 z-40 bg-black/50 transition-opacity lg:hidden ${
+        className={`fixed inset-0 z-40 bg-black/35 transition-opacity lg:hidden ${
           open ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={onClose}
       />
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-white/10 bg-[var(--pp-bg)]/95 px-4 py-6 backdrop-blur transition-transform duration-200 lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-[color:var(--pp-border)] bg-[var(--pp-surface-glass-strong)] px-4 py-6 backdrop-blur transition-transform duration-200 lg:hidden ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-cyan-200/80">
-              ProfitPulse
-            </p>
-            <p className="text-lg font-semibold text-white">Navigate</p>
+          <div className="flex items-center justify-between px-3">
+          <div className="text-base font-semibold text-[color:var(--pp-foreground)]">
+            ProfitPulse
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-sm text-white transition hover:border-white/30"
+            className="pp-btn pp-btn-secondary glass-inset h-9 w-9 text-sm"
             aria-label="Close navigation"
           >
             ✕
           </button>
         </div>
-        <nav className="mt-6 space-y-1">
+        <nav className="mt-6 space-y-1 pl-2 pr-3">
           {NAV_ITEMS.map((item) => {
             const isActive = activeHref === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-white/10 ${
-                  isActive ? "bg-white/10 text-white" : "text-slate-200"
+                className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-white/60 ${
+                  isActive
+                    ? "glass-inset border border-[color:var(--pp-border)] bg-white/70 text-[color:var(--pp-foreground)]"
+                    : "text-[color:var(--pp-muted)]"
                 }`}
                 onClick={onClose}
               >
