@@ -25,6 +25,7 @@ model Shop {
   paymentFeeFixed Float  @default(0)
 
   products    Product[]
+  variants    Variant[]
   orders      Order[]
   adSpends    AdSpend[]
   metaAdAccounts MetaAdAccount[]
@@ -44,10 +45,28 @@ model Product {
   imageUrl         String?
   costPerUnit      Float?
 
+  variants         Variant[]
   orderLines       OrderLine[]
   campaignProducts CampaignProduct[]
 
   @@unique([shopId, shopifyProductId])
+}
+
+model Variant {
+  id               String     @id @default(cuid())
+  shop             Shop       @relation(fields: [shopId], references: [id])
+  shopId           String
+  product          Product    @relation(fields: [productId], references: [id])
+  productId        String
+  shopifyVariantId String
+  title            String
+  sku              String?
+  costPerUnit      Float?
+
+  orderLines       OrderLine[]
+
+  @@unique([shopId, shopifyVariantId])
+  @@index([productId])
 }
 
 model Order {
@@ -105,9 +124,13 @@ model OrderLine {
 
   product     Product  @relation(fields: [productId], references: [id])
   productId   String
+  variant     Variant? @relation(fields: [variantId], references: [id])
+  variantId   String?
 
   quantity    Int
   lineRevenue Float // price * quantity
+
+  @@index([variantId])
 }
 
 model AdSpend {

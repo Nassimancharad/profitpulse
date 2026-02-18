@@ -89,6 +89,10 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
   const startDateKey = parseDateKeyParam(resolvedSearchParams?.start) ?? defaultStartDateKey;
   const endDateKey = parseDateKeyParam(resolvedSearchParams?.end) ?? defaultEndDateKey;
+  const { start: adSpendStartDateUtc, end: adSpendEndDateUtc } = utcDayBoundsForDateRange(
+    startDateKey,
+    endDateKey,
+  );
   const { start: startDate } = dayBoundsForDateKey(startDateKey, timezone);
   const { end: endDate } = dayBoundsForDateKey(endDateKey, timezone);
   const rangeDays = Math.max(
@@ -97,6 +101,10 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   );
   const previousEndDateKey = addDaysToDateKey(startDateKey, -1);
   const previousStartDateKey = addDaysToDateKey(previousEndDateKey, -(rangeDays - 1));
+  const { start: previousAdSpendStartDateUtc, end: previousAdSpendEndDateUtc } = utcDayBoundsForDateRange(
+    previousStartDateKey,
+    previousEndDateKey,
+  );
   const { start: previousStart } = dayBoundsForDateKey(previousStartDateKey, timezone);
   const { end: previousEnd } = dayBoundsForDateKey(previousEndDateKey, timezone);
   const comparisonLabel = `vs ${formatDateForTimezone(previousStart, timezone)} – ${formatDateForTimezone(previousEnd, timezone)}`;
@@ -133,7 +141,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
       ? prisma.adSpend.findMany({
           where: {
             shopId: activeShop.id,
-            date: { gte: startDate, lte: endDate },
+            date: { gte: adSpendStartDateUtc, lte: adSpendEndDateUtc },
           },
           select: { amountSpent: true, date: true },
         })
@@ -368,7 +376,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         ? prisma.adSpend.findMany({
             where: {
               shopId: activeShop.id,
-              date: { gte: previousStart, lte: previousEnd },
+              date: { gte: previousAdSpendStartDateUtc, lte: previousAdSpendEndDateUtc },
             },
             select: { amountSpent: true },
           })
@@ -962,6 +970,14 @@ function dateKeyToUtcParts(dateKey: string): [number, number, number] {
     return [today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()];
   }
   return [parsed.year, parsed.month - 1, parsed.day];
+}
+
+function utcDayBoundsForDateRange(startDateKey: string, endDateKey: string) {
+  const [startYear, startMonthIndex, startDay] = dateKeyToUtcParts(startDateKey);
+  const [endYear, endMonthIndex, endDay] = dateKeyToUtcParts(endDateKey);
+  const start = new Date(Date.UTC(startYear, startMonthIndex, startDay, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(endYear, endMonthIndex, endDay + 1, 0, 0, 0, 0) - 1);
+  return { start, end };
 }
 
 const KPI_OPTIONS: Array<{ key: "revenue" | "orders" | "cogs" | "adSpend" | "profit" | "margin" | "roas"; label: string; format: "currency" | "number" | "percent" | "ratio" }> = [
