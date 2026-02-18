@@ -1,4 +1,5 @@
 import { calculatePaymentFee } from './payment-fees';
+import { resolveLineCostPerUnit } from './costs';
 import {
   calculateNetProfitForOrder,
   calculateNetRevenueForOrder,
@@ -45,6 +46,7 @@ export type OrderLineInput = {
   quantity: number;
   lineRevenue: number;
   product?: { costPerUnit: number | null } | null;
+  variant?: { costPerUnit: number | null } | null;
 };
 
 export type ProductLineInput = {
@@ -305,7 +307,10 @@ function computeKpisForScope(
   const lineInputs: OrderLineTotalsInput[] = data.orderLines.map((line) => ({
     quantity: line.quantity,
     lineRevenue: line.lineRevenue,
-    costPerUnit: line.product?.costPerUnit ?? null,
+    costPerUnit: resolveLineCostPerUnit({
+      variantCostPerUnit: line.variant?.costPerUnit ?? null,
+      productCostPerUnit: line.product?.costPerUnit ?? null,
+    }),
   }));
 
   const { totalRevenue, totalUnits, totalCost, totalAdSpend, profit, profitMargin, roas } =

@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import { normalizeShopTimezone, toTimeZoneDateKey } from '@/lib/timezone';
+import { resolveLineCostPerUnit } from '@/domain/profit-engine/costs';
 import {
   calculateOrderProfitBreakdown,
   type OrderProfitInputLine,
@@ -66,6 +67,7 @@ export async function getOrderProfitBreakdown(
         quantity: true,
         lineRevenue: true,
         product: { select: { costPerUnit: true } },
+        variant: { select: { costPerUnit: true } },
       },
     }),
     prisma.adSpend.findMany({
@@ -90,7 +92,10 @@ export async function getOrderProfitBreakdown(
     orderId: line.orderId,
     quantity: line.quantity,
     lineRevenue: line.lineRevenue,
-    costPerUnit: line.product?.costPerUnit ?? null,
+    costPerUnit: resolveLineCostPerUnit({
+      variantCostPerUnit: line.variant?.costPerUnit ?? null,
+      productCostPerUnit: line.product?.costPerUnit ?? null,
+    }),
   }));
 
   return calculateOrderProfitBreakdown(

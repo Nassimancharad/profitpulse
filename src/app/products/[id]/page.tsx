@@ -38,6 +38,15 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
           title: true,
           imageUrl: true,
           costPerUnit: true,
+          variants: {
+            select: {
+              id: true,
+              title: true,
+              sku: true,
+              costPerUnit: true,
+            },
+            orderBy: [{ title: 'asc' }, { sku: 'asc' }],
+          },
           shop: {
             select: {
               id: true,
@@ -57,6 +66,15 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
           title: true,
           imageUrl: true,
           costPerUnit: true,
+          variants: {
+            select: {
+              id: true,
+              title: true,
+              sku: true,
+              costPerUnit: true,
+            },
+            orderBy: [{ title: 'asc' }, { sku: 'asc' }],
+          },
           shop: {
             select: {
               id: true,
@@ -120,6 +138,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
       include: {
         order: true,
         product: true,
+        variant: true,
       },
       orderBy: { order: { createdAt: 'desc' } },
     }),
@@ -152,7 +171,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   const lineInputs = orderLines.map((line) => ({
     quantity: line.quantity,
     lineRevenue: line.lineRevenue,
-    costPerUnit: line.product?.costPerUnit ?? null,
+    costPerUnit: line.variant?.costPerUnit ?? line.product?.costPerUnit ?? null,
   }));
   const { totalRevenue, totalUnits, totalCost, totalAdSpend, profit, profitMargin, roas } =
     computeProductProfitSummary(lineInputs, adSpends);
@@ -272,7 +291,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
                     const { lineCost, lineProfit, margin } = computeLineProfitMetrics({
                       quantity: line.quantity,
                       lineRevenue: line.lineRevenue,
-                      costPerUnit: line.product?.costPerUnit ?? null,
+                      costPerUnit: line.variant?.costPerUnit ?? line.product?.costPerUnit ?? null,
                     });
 
                     return (
@@ -300,6 +319,12 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
             productId={product.id}
             initialCost={product.costPerUnit}
             shopDomain={product.shop.shopDomain}
+            variants={product.variants.map((variant) => ({
+              id: variant.id,
+              title: variant.title,
+              sku: variant.sku,
+              initialCost: variant.costPerUnit,
+            }))}
           />
         </div>
 

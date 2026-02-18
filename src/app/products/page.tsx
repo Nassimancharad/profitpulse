@@ -100,6 +100,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       product: {
         select: { costPerUnit: true },
       },
+      variant: {
+        select: { costPerUnit: true },
+      },
     },
   });
 
@@ -108,7 +111,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       productId: line.productId,
       quantity: line.quantity,
       lineRevenue: line.lineRevenue,
-      costPerUnit: line.product?.costPerUnit ?? null,
+      costPerUnit: line.variant?.costPerUnit ?? line.product?.costPerUnit ?? null,
     })),
   );
 

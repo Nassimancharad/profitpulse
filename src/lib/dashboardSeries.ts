@@ -2,6 +2,7 @@ import { formatShopLabel } from '@/lib/shopLabel';
 import { resolveShippingCost, type ShippingCostRuleInput } from '@/lib/shippingCost';
 import { getTotalExpensesForView } from '@/lib/expenses';
 import { addDaysToDateKey, normalizeShopTimezone, toTimeZoneDateKey } from '@/lib/timezone';
+import { resolveLineCostPerUnit } from '@/domain/profit-engine/costs';
 import {
   calculateNetProfitForOrder,
   calculateNetRevenueForOrder,
@@ -26,6 +27,7 @@ export type OrderLineInput = {
   quantity: number;
   lineRevenue: number;
   product?: { costPerUnit: number | null } | null;
+  variant?: { costPerUnit: number | null } | null;
 };
 
 export type OrderInput = {
@@ -179,7 +181,11 @@ export function normalizeSeriesInputs({
     const info = orderInfoById.get(line.orderId);
     if (!info) continue;
     const agg = orderAggregates.get(line.orderId) ?? { productRevenue: 0, units: 0, cogs: 0 };
-    const costPerUnit = line.product?.costPerUnit ?? 0;
+    const costPerUnit =
+      resolveLineCostPerUnit({
+        variantCostPerUnit: line.variant?.costPerUnit ?? null,
+        productCostPerUnit: line.product?.costPerUnit ?? null,
+      }) ?? 0;
     agg.productRevenue += line.lineRevenue;
     agg.units += line.quantity;
     agg.cogs += line.quantity * costPerUnit;
