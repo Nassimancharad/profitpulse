@@ -54,6 +54,7 @@ model Order {
   shopId         String
   shopifyOrderId String
   createdAt      DateTime
+  shopifyUpdatedAt DateTime?
   totalPrice     Float
   shippingRevenue Float    @default(0)
   shippingCost    Float?
@@ -65,6 +66,7 @@ model Order {
   orderLines     OrderLine[]
 
   @@unique([shopId, shopifyOrderId])
+  @@index([shopifyUpdatedAt])
 }
 
 model Expense {

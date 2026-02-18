@@ -15,9 +15,21 @@ export type ShopifySyncResult = {
   orderLinesSynced: number;
 };
 
+type ShopifySyncMode = "incremental" | "backfill";
+
 export function parseMaxPages(value: string | null) {
   const parsed = value ? Number.parseInt(value, 10) : null;
   return parsed && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export function parseShopifySyncMode(value: string | null): ShopifySyncMode {
+  return value === "backfill" ? "backfill" : "incremental";
+}
+
+export function parseDate(value: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function pickPrimaryImage(product: ShopifyProduct) {
@@ -30,6 +42,8 @@ function pickPrimaryImage(product: ShopifyProduct) {
 export async function syncShopifyStoreData(params: {
   shopDomain: string | null;
   maxPages?: number;
+  mode?: ShopifySyncMode;
+  start?: Date | null;
 }): Promise<{ ok: true; result: ShopifySyncResult } | { ok: false; status: number; error: string }> {
   const shopRecord = params.shopDomain
     ? await prisma.shop.findUnique({ where: { shopDomain: params.shopDomain } })
@@ -55,20 +69,32 @@ export async function syncShopifyStoreData(params: {
   const fallbackSince = new Date();
   fallbackSince.setDate(fallbackSince.getDate() - 30);
   const overlapMs = 24 * 60 * 60 * 1000;
-  const since = lock.state.lastSyncedAt
+  const mode: ShopifySyncMode = params.mode ?? "incremental";
+  const backfillDefaultStart = new Date("2000-01-01T00:00:00.000Z");
+  const incrementalSince = lock.state.lastSyncedAt
     ? new Date(lock.state.lastSyncedAt.getTime() - overlapMs)
     : fallbackSince;
-  const createdAtMinIso = since.toISOString();
+  const backfillSince = params.start ?? backfillDefaultStart;
+  const createdAtMinIso = mode === "backfill" ? backfillSince.toISOString() : undefined;
+  const updatedAtMinIso = mode === "incremental" ? incrementalSince.toISOString() : undefined;
   const idempotencyKey = buildIdempotencyKey([
     "shopify-sync",
     shopRecord.shopDomain,
-    createdAtMinIso.slice(0, 10),
+    mode,
+    (createdAtMinIso ?? updatedAtMinIso ?? "").slice(0, 10),
     params.maxPages ?? null,
   ]);
   const run = startJobRun({
     name: "shopify-sync",
     scope: shopRecord.shopDomain,
-    cursor: params.maxPages ? `maxPages=${params.maxPages}` : null,
+    cursor: [
+      mode,
+      createdAtMinIso ? `created_at_min=${createdAtMinIso.slice(0, 10)}` : null,
+      updatedAtMinIso ? `updated_at_min=${updatedAtMinIso.slice(0, 10)}` : null,
+      params.maxPages ? `maxPages=${params.maxPages}` : null,
+    ]
+      .filter(Boolean)
+      .join(" | "),
     idempotencyKey,
   });
 
@@ -79,7 +105,13 @@ export async function syncShopifyStoreData(params: {
     const options = params.maxPages ? { maxPages: params.maxPages } : undefined;
     [products, orders] = await Promise.all([
       fetchShopifyProducts(shopRecord.shopDomain, shopRecord.accessToken, options),
-      fetchShopifyOrders(shopRecord.shopDomain, shopRecord.accessToken, createdAtMinIso, options),
+      fetchShopifyOrders(
+        shopRecord.shopDomain,
+        shopRecord.accessToken,
+        createdAtMinIso,
+        updatedAtMinIso,
+        options,
+      ),
     ]);
   } catch (error) {
     finishJobRun(run, "error");
@@ -127,9 +159,11 @@ export async function syncShopifyStoreData(params: {
 
     let ordersSynced = 0;
     let orderLinesSynced = 0;
+    let latestUpdatedAt: Date | null = null;
 
     for (const order of orders) {
       const createdAt = new Date(order.created_at);
+      const updatedAt = order.updated_at ? new Date(order.updated_at) : null;
       const totalPrice = Number(order.total_price ?? 0);
       const shippingFromSet = Number(order.total_shipping_price_set?.shop_money?.amount ?? 0);
       const shippingRevenue = Number.isFinite(shippingFromSet) && shippingFromSet > 0
@@ -180,38 +214,7 @@ export async function syncShopifyStoreData(params: {
       if (!Number.isFinite(refundedProductAmount)) refundedProductAmount = 0;
       if (!Number.isFinite(refundedShippingAmount)) refundedShippingAmount = 0;
 
-      const orderRecord = await prisma.order.upsert({
-        where: {
-          shopId_shopifyOrderId: {
-            shopId: shopRecord.id,
-            shopifyOrderId: String(order.id),
-          },
-        },
-        update: {
-          createdAt,
-          totalPrice,
-          shippingRevenue,
-          shippingCountryCode,
-          refundedProductAmount,
-          refundedShippingAmount,
-        },
-        create: {
-          shopId: shopRecord.id,
-          shopifyOrderId: String(order.id),
-          createdAt,
-          totalPrice,
-          shippingRevenue,
-          shippingCountryCode,
-          refundedProductAmount,
-          refundedShippingAmount,
-        },
-        select: { id: true },
-      });
-
-      await prisma.orderLine.deleteMany({ where: { orderId: orderRecord.id } });
-
       const lineCreates: Array<{
-        orderId: string;
         productId: string;
         quantity: number;
         lineRevenue: number;
@@ -250,27 +253,80 @@ export async function syncShopifyStoreData(params: {
         productIdMap.set(shopifyProductId, productId);
 
         lineCreates.push({
-          orderId: orderRecord.id,
           productId,
           quantity: line.quantity ?? 0,
           lineRevenue: Number(line.price ?? 0) * (line.quantity ?? 0),
         });
       }
 
-      if (lineCreates.length > 0) {
-        const batchSize = 500;
-        for (let idx = 0; idx < lineCreates.length; idx += batchSize) {
-          const slice = lineCreates.slice(idx, idx + batchSize);
-          await prisma.orderLine.createMany({ data: slice });
+      const orderRecord = await prisma.$transaction(async (tx) => {
+        const record = await tx.order.upsert({
+          where: {
+            shopId_shopifyOrderId: {
+              shopId: shopRecord.id,
+              shopifyOrderId: String(order.id),
+            },
+          },
+          update: {
+            createdAt,
+            totalPrice,
+            shippingRevenue,
+            shippingCountryCode,
+            refundedProductAmount,
+            refundedShippingAmount,
+            shopifyUpdatedAt: updatedAt,
+          },
+          create: {
+            shopId: shopRecord.id,
+            shopifyOrderId: String(order.id),
+            createdAt,
+            totalPrice,
+            shippingRevenue,
+            shippingCountryCode,
+            refundedProductAmount,
+            refundedShippingAmount,
+            shopifyUpdatedAt: updatedAt,
+          },
+          select: { id: true },
+        });
+
+        await tx.orderLine.deleteMany({ where: { orderId: record.id } });
+
+        if (lineCreates.length > 0) {
+          const batchSize = 500;
+          for (let idx = 0; idx < lineCreates.length; idx += batchSize) {
+            const slice = lineCreates.slice(idx, idx + batchSize);
+            await tx.orderLine.createMany({
+              data: slice.map((line) => ({
+                orderId: record.id,
+                productId: line.productId,
+                quantity: line.quantity,
+                lineRevenue: line.lineRevenue,
+              })),
+            });
+          }
         }
+
+        return record;
+      });
+
+      if (lineCreates.length > 0) {
         orderLinesSynced += lineCreates.length;
+      }
+
+      if (updatedAt && (!latestUpdatedAt || updatedAt > latestUpdatedAt)) {
+        latestUpdatedAt = updatedAt;
       }
 
       ordersSynced += 1;
     }
 
     finishJobRun(run, "ok");
-    await recordSyncSuccess({ shopId: shopRecord.id, resource: "SHOPIFY" });
+    await recordSyncSuccess({
+      shopId: shopRecord.id,
+      resource: "SHOPIFY",
+      syncedAt: latestUpdatedAt ?? new Date(),
+    });
     return {
       ok: true,
       result: {

@@ -7,6 +7,9 @@ export async function POST(request: Request) {
   const queryStart = url.searchParams.get("start");
   const queryEnd = url.searchParams.get("end");
   const queryMaxPages = url.searchParams.get("maxPages");
+  const acceptsJson = request.headers.get("accept")?.includes("application/json");
+  const forceJson = request.headers.get("x-pp-sync") === "1";
+  const returnJson = acceptsJson || forceJson;
 
   let bodyShop: string | null = null;
   let bodyStart: string | null = null;
@@ -28,6 +31,9 @@ export async function POST(request: Request) {
   });
 
   if (!result.ok) {
+    if (returnJson) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
     if (result.status === 502 && result.reason) {
       const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "");
       const origin = appUrl ?? new URL(request.url).origin;
@@ -35,6 +41,10 @@ export async function POST(request: Request) {
       return NextResponse.redirect(redirectUrl, 303);
     }
     return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  if (returnJson) {
+    return NextResponse.json({ ok: true, synced: result.result });
   }
 
   const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "");
