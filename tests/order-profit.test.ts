@@ -335,3 +335,96 @@ test('order-level totals align with dashboard aggregates without expenses', () =
 
   assertClose(orderNetProfitTotal, dashboardNetProfitTotal, 1e-6);
 });
+
+test('calculateOrderProfitBreakdown buckets orders and ad spend by provided timezone', () => {
+  const result = calculateOrderProfitBreakdown(
+    [
+      {
+        id: 'order-1',
+        shopifyOrderId: '2001',
+        createdAt: new Date('2025-01-11T02:30:00.000Z'),
+        shippingRevenue: 0,
+        shippingCost: 0,
+        shippingCountryCode: null,
+        refundedProductAmount: 0,
+        refundedShippingAmount: 0,
+        paymentFeeActual: null,
+        paymentFeePct: 0,
+        paymentFeeFixed: 0,
+      },
+      {
+        id: 'order-2',
+        shopifyOrderId: '2002',
+        createdAt: new Date('2025-01-11T05:30:00.000Z'),
+        shippingRevenue: 0,
+        shippingCost: 0,
+        shippingCountryCode: null,
+        refundedProductAmount: 0,
+        refundedShippingAmount: 0,
+        paymentFeeActual: null,
+        paymentFeePct: 0,
+        paymentFeeFixed: 0,
+      },
+    ],
+    [
+      { orderId: 'order-1', quantity: 1, lineRevenue: 100, costPerUnit: 0 },
+      { orderId: 'order-2', quantity: 1, lineRevenue: 100, costPerUnit: 0 },
+    ],
+    [
+      { date: new Date('2025-01-10T20:00:00.000Z'), amountSpent: 40 },
+      { date: new Date('2025-01-11T20:00:00.000Z'), amountSpent: 20 },
+    ],
+    [],
+    'America/New_York',
+  );
+
+  const byShopifyId = new Map(result.orders.map((order) => [order.shopifyOrderId, order]));
+  assert.equal(byShopifyId.get('2001')?.adCostAllocated, 40);
+  assert.equal(byShopifyId.get('2002')?.adCostAllocated, 20);
+});
+
+test('calculateOrderProfitBreakdown treats ad spend date as canonical day key', () => {
+  const result = calculateOrderProfitBreakdown(
+    [
+      {
+        id: 'order-1',
+        shopifyOrderId: '3001',
+        createdAt: new Date('2025-01-10T01:00:00.000Z'), // Jan 9 in New York
+        shippingRevenue: 0,
+        shippingCost: 0,
+        shippingCountryCode: null,
+        refundedProductAmount: 0,
+        refundedShippingAmount: 0,
+        paymentFeeActual: null,
+        paymentFeePct: 0,
+        paymentFeeFixed: 0,
+      },
+      {
+        id: 'order-2',
+        shopifyOrderId: '3002',
+        createdAt: new Date('2025-01-10T15:00:00.000Z'), // Jan 10 in New York
+        shippingRevenue: 0,
+        shippingCost: 0,
+        shippingCountryCode: null,
+        refundedProductAmount: 0,
+        refundedShippingAmount: 0,
+        paymentFeeActual: null,
+        paymentFeePct: 0,
+        paymentFeeFixed: 0,
+      },
+    ],
+    [
+      { orderId: 'order-1', quantity: 1, lineRevenue: 100, costPerUnit: 0 },
+      { orderId: 'order-2', quantity: 1, lineRevenue: 100, costPerUnit: 0 },
+    ],
+    [
+      { date: new Date('2025-01-10T00:00:00.000Z'), amountSpent: 40 },
+    ],
+    [],
+    'America/New_York',
+  );
+
+  const byShopifyId = new Map(result.orders.map((order) => [order.shopifyOrderId, order]));
+  assert.equal(byShopifyId.get('3001')?.adCostAllocated, 0);
+  assert.equal(byShopifyId.get('3002')?.adCostAllocated, 40);
+});

@@ -176,8 +176,8 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           },
         })
       : [],
-    useAllocatedAdSpend ? getAllocatedAdSpendByShop(shopIds, startDate, endDate) : Promise.resolve([]),
-    useAllocatedAdSpend ? getAllocatedAdSpendByShopByDate(shopIds, startDate, endDate) : Promise.resolve([]),
+    useAllocatedAdSpend ? getAllocatedAdSpendByShop(shopIds, startDate, endDate, timezone) : Promise.resolve([]),
+    useAllocatedAdSpend ? getAllocatedAdSpendByShopByDate(shopIds, startDate, endDate, timezone) : Promise.resolve([]),
     (prisma as any).expense?.findMany
       ? (prisma as any).expense.findMany({
           where: {
@@ -370,7 +370,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           })
         : Promise.resolve<AdSpendInput[]>([]),
       useAllocatedAdSpend
-        ? getAllocatedAdSpendByShopByDate(shopIds, previousStart, previousEnd)
+        ? getAllocatedAdSpendByShopByDate(shopIds, previousStart, previousEnd, timezone)
         : Promise.resolve([]),
     ]);
 
@@ -534,6 +534,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     <TimeRangeSelector
       startDate={startDateKey}
       endDate={endDateKey}
+      timezone={timezone}
     />
   );
 

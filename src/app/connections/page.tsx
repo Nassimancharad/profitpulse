@@ -117,7 +117,18 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
 
   const shop = await prisma.shop.findUnique({
     where: { id: activeShop.id },
-    include: { metaAdAccounts: true },
+    select: {
+      id: true,
+      shopDomain: true,
+      installedAt: true,
+      metaAdAccounts: {
+        select: {
+          id: true,
+          adAccountId: true,
+          name: true,
+        },
+      },
+    },
   });
 
   if (!shop) {

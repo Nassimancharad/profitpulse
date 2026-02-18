@@ -66,6 +66,11 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
   const shop = await prisma.shop.findUnique({
     where: { id: activeShop.id },
+    select: {
+      id: true,
+      shopDomain: true,
+      installedAt: true,
+    },
   });
 
   if (!shop) {

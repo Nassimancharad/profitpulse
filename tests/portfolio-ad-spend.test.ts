@@ -58,3 +58,19 @@ test('allocateAdSpendByShopByDate keeps daily allocations stable', () => {
   assert.equal(allocationMap.get('shop_a::2025-01-10'), 75);
   assert.equal(allocationMap.get('shop_b::2025-01-10'), 25);
 });
+
+test('allocateAdSpendByShopByDate preserves canonical ad-spend day keys for non-UTC shops', () => {
+  const allocations = allocateAdSpendByShopByDate(
+    [{ shopId: 'shop_a', adAccountId: 'act_1' }],
+    [{ shopId: 'shop_a', adAccountId: 'act_1', date: new Date('2025-01-10T00:00:00.000Z'), amountSpent: 40 }],
+    [{ shopId: 'shop_a', date: new Date('2025-01-10T16:00:00.000Z'), netRevenue: 100 }],
+    'America/New_York',
+  );
+
+  const allocationMap = new Map(
+    allocations.map((row) => [`${row.shopId}::${row.date.toISOString().slice(0, 10)}`, row.amountSpent]),
+  );
+
+  assert.equal(allocationMap.get('shop_a::2025-01-10'), 40);
+  assert.equal(allocationMap.get('shop_a::2025-01-09'), undefined);
+});

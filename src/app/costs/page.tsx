@@ -76,7 +76,12 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
 
   const shop = await prisma.shop.findUnique({
     where: { id: activeShop.id },
-    include: { metaAdAccounts: true },
+    select: {
+      id: true,
+      shopDomain: true,
+      paymentFeePct: true,
+      paymentFeeFixed: true,
+    },
   });
 
   if (!shop) {
