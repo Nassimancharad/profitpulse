@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { normalizeShopTimezone, toTimeZoneDateKey } from '@/lib/timezone';
 import {
   calculateOrderProfitBreakdown,
   type OrderProfitInputLine,
@@ -10,9 +11,16 @@ export async function getOrderProfitBreakdown(
   start: Date,
   end: Date,
   timezone?: string | null,
+  startDateKey?: string,
+  endDateKey?: string,
 ): Promise<OrderProfitResult> {
   const startDate = new Date(start);
   const endDate = new Date(end);
+  const resolvedTimezone = normalizeShopTimezone(timezone);
+  const startDayKey = startDateKey ?? toTimeZoneDateKey(startDate, resolvedTimezone);
+  const endDayKey = endDateKey ?? toTimeZoneDateKey(endDate, resolvedTimezone);
+  const adSpendStartDate = new Date(`${startDayKey}T00:00:00.000Z`);
+  const adSpendEndDate = new Date(`${endDayKey}T23:59:59.999Z`);
 
   const orders = await (async () => {
     try {
@@ -61,7 +69,7 @@ export async function getOrderProfitBreakdown(
       },
     }),
     prisma.adSpend.findMany({
-      where: { shopId, date: { gte: startDate, lte: endDate } },
+      where: { shopId, date: { gte: adSpendStartDate, lte: adSpendEndDate } },
       select: { date: true, amountSpent: true },
     }),
     (prisma as any).shippingCostRule?.findMany

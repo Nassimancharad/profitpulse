@@ -79,6 +79,13 @@ function toDateKey(value: Date, timezone: string) {
   return toTimeZoneDateKey(value, timezone);
 }
 
+function toAdSpendDayKey(value: Date) {
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(value.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function calculateOrderProfitBreakdown(
   orders: OrderProfitInputOrder[],
   orderLines: OrderProfitInputLine[],
@@ -137,7 +144,8 @@ export function calculateOrderProfitBreakdown(
 
   const spendByDate = new Map<string, number>();
   for (const spend of adSpends) {
-    const key = toDateKey(spend.date, resolvedTimezone);
+    // Ad spend rows are stored as canonical day keys (00:00:00Z), not local instants.
+    const key = toAdSpendDayKey(spend.date);
     spendByDate.set(key, (spendByDate.get(key) ?? 0) + spend.amountSpent);
   }
 

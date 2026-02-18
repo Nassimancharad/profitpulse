@@ -26,7 +26,14 @@ export async function GET(request: Request) {
   }
 
   const { query } = parsedQuery;
-  const orderProfitResult = await getOrderProfitBreakdown(shop.id, query.startDate, query.endDate, shop.timezone);
+  const orderProfitResult = await getOrderProfitBreakdown(
+    shop.id,
+    query.startDate,
+    query.endDate,
+    shop.timezone,
+    query.startDateKey,
+    query.endDateKey,
+  );
   const responseDto = toOrderProfitResponseDto(
     shop.shopDomain,
     query.startDateKey,

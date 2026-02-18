@@ -87,6 +87,13 @@ function toDateKey(value: Date, timezone: string) {
   return toTimeZoneDateKey(value, timezone);
 }
 
+function toAdSpendDayKey(value: Date) {
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(value.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function buildDateKeys(start: Date, end: Date, timezone: string) {
   const keys: string[] = [];
   let cursorKey = toDateKey(start, timezone);
@@ -182,7 +189,7 @@ export function normalizeSeriesInputs({
   const adSpendByKey = new Map<string, number>();
   if (useAllocatedAdSpend) {
     for (const row of portfolioAdAllocationsByDate) {
-      const dateKey = toDateKey(row.date, resolvedTimezone);
+      const dateKey = toAdSpendDayKey(row.date);
       const key = `${row.shopId}::${dateKey}`;
       adSpendByKey.set(key, (adSpendByKey.get(key) ?? 0) + row.amountSpent);
     }
