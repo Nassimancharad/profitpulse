@@ -15,6 +15,7 @@ import { logWarn } from "@/observability";
 export type ShopifySyncResult = {
   shop: string;
   productsSynced: number;
+  variantsSynced: number;
   ordersSynced: number;
   orderLinesSynced: number;
 };
@@ -22,6 +23,12 @@ export type ShopifySyncResult = {
 export function parseMaxPages(value: string | null) {
   const parsed = value ? Number.parseInt(value, 10) : null;
   return parsed && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+export function parseFullSync(value: string | null) {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes";
 }
 
 function pickPrimaryImage(product: ShopifyProduct) {
@@ -34,6 +41,7 @@ function pickPrimaryImage(product: ShopifyProduct) {
 export async function syncShopifyStoreData(params: {
   shopDomain: string | null;
   maxPages?: number;
+  fullSync?: boolean;
 }): Promise<{ ok: true; result: ShopifySyncResult } | { ok: false; status: number; error: string }> {
   const shopRecord = params.shopDomain
     ? await prisma.shop.findUnique({ where: { shopDomain: params.shopDomain } })
@@ -59,20 +67,27 @@ export async function syncShopifyStoreData(params: {
   const fallbackSince = new Date();
   fallbackSince.setDate(fallbackSince.getDate() - 30);
   const overlapMs = 24 * 60 * 60 * 1000;
-  const since = lock.state.lastSyncedAt
-    ? new Date(lock.state.lastSyncedAt.getTime() - overlapMs)
-    : fallbackSince;
-  const createdAtMinIso = since.toISOString();
+  const createdAtMinIso = params.fullSync
+    ? null
+    : (lock.state.lastSyncedAt
+        ? new Date(lock.state.lastSyncedAt.getTime() - overlapMs)
+        : fallbackSince).toISOString();
   const idempotencyKey = buildIdempotencyKey([
     "shopify-sync",
     shopRecord.shopDomain,
-    createdAtMinIso.slice(0, 10),
+    createdAtMinIso ? createdAtMinIso.slice(0, 10) : "all-history",
     params.maxPages ?? null,
+    params.fullSync ? "full" : "delta",
   ]);
   const run = startJobRun({
     name: "shopify-sync",
     scope: shopRecord.shopDomain,
-    cursor: params.maxPages ? `maxPages=${params.maxPages}` : null,
+    cursor: [
+      params.maxPages ? `maxPages=${params.maxPages}` : null,
+      params.fullSync ? "fullSync=true" : null,
+    ]
+      .filter((value): value is string => Boolean(value))
+      .join(",") || null,
     idempotencyKey,
   });
 
@@ -92,7 +107,7 @@ export async function syncShopifyStoreData(params: {
         return null;
       }),
       fetchShopifyProducts(shopRecord.shopDomain, shopRecord.accessToken, options),
-      fetchShopifyOrders(shopRecord.shopDomain, shopRecord.accessToken, createdAtMinIso, options),
+      fetchShopifyOrders(shopRecord.shopDomain, shopRecord.accessToken, createdAtMinIso ?? undefined, options),
     ]);
     products = productsResult;
     orders = ordersResult;
@@ -135,6 +150,7 @@ export async function syncShopifyStoreData(params: {
 
   try {
     const productIdMap = new Map<string, string>();
+    const variantIdMap = new Map<string, string>();
 
     for (const product of products) {
       const shopifyProductId = String(product.id);
@@ -161,6 +177,32 @@ export async function syncShopifyStoreData(params: {
       });
 
       productIdMap.set(shopifyProductId, record.id);
+
+      for (const variant of product.variants ?? []) {
+        const shopifyVariantId = String(variant.id);
+        const variantRecord = await prisma.variant.upsert({
+          where: {
+            shopId_shopifyVariantId: {
+              shopId: shopRecord.id,
+              shopifyVariantId,
+            },
+          },
+          update: {
+            productId: record.id,
+            title: variant.title?.trim() || product.title,
+            sku: variant.sku?.trim() || null,
+          },
+          create: {
+            shopId: shopRecord.id,
+            productId: record.id,
+            shopifyVariantId,
+            title: variant.title?.trim() || product.title,
+            sku: variant.sku?.trim() || null,
+          },
+          select: { id: true },
+        });
+        variantIdMap.set(shopifyVariantId, variantRecord.id);
+      }
     }
 
     let ordersSynced = 0;
@@ -246,11 +288,10 @@ export async function syncShopifyStoreData(params: {
         select: { id: true },
       });
 
-      await prisma.orderLine.deleteMany({ where: { orderId: orderRecord.id } });
-
       const lineCreates: Array<{
         orderId: string;
         productId: string;
+        variantId: string | null;
         quantity: number;
         lineRevenue: number;
       }> = [];
@@ -286,23 +327,59 @@ export async function syncShopifyStoreData(params: {
         if (!productId) continue;
 
         productIdMap.set(shopifyProductId, productId);
+        const shopifyVariantId = line.variant_id ? String(line.variant_id) : null;
+        let variantId: string | null = null;
+
+        if (shopifyVariantId) {
+          variantId = variantIdMap.get(shopifyVariantId) ?? null;
+
+          if (!variantId) {
+            const fallbackVariant = await prisma.variant.upsert({
+              where: {
+                shopId_shopifyVariantId: {
+                  shopId: shopRecord.id,
+                  shopifyVariantId,
+                },
+              },
+              update: {
+                productId,
+                title: line.title,
+              },
+              create: {
+                shopId: shopRecord.id,
+                productId,
+                shopifyVariantId,
+                title: line.title,
+              },
+              select: { id: true },
+            });
+            variantId = fallbackVariant.id;
+            variantIdMap.set(shopifyVariantId, fallbackVariant.id);
+          }
+        }
 
         lineCreates.push({
           orderId: orderRecord.id,
           productId,
+          variantId,
           quantity: line.quantity ?? 0,
           lineRevenue: Number(line.price ?? 0) * (line.quantity ?? 0),
         });
       }
 
-      if (lineCreates.length > 0) {
-        const batchSize = 500;
-        for (let idx = 0; idx < lineCreates.length; idx += batchSize) {
-          const slice = lineCreates.slice(idx, idx + batchSize);
-          await prisma.orderLine.createMany({ data: slice });
+      await prisma.$transaction(async (tx) => {
+        await tx.orderLine.deleteMany({ where: { orderId: orderRecord.id } });
+
+        if (lineCreates.length > 0) {
+          const batchSize = 500;
+          for (let idx = 0; idx < lineCreates.length; idx += batchSize) {
+            const slice = lineCreates.slice(idx, idx + batchSize);
+            await tx.orderLine.createMany({ data: slice });
+          }
         }
-        orderLinesSynced += lineCreates.length;
-      }
+      });
+
+      orderLinesSynced += lineCreates.length;
 
       ordersSynced += 1;
     }
@@ -314,6 +391,7 @@ export async function syncShopifyStoreData(params: {
       result: {
         shop: shopRecord.shopDomain,
         productsSynced: productIdMap.size,
+        variantsSynced: variantIdMap.size,
         ordersSynced,
         orderLinesSynced,
       },

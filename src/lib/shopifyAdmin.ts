@@ -9,13 +9,22 @@ type FetchOptions = {
 type ShopifyProduct = {
   id: number;
   title: string;
+  variants?: ShopifyProductVariant[] | null;
   image?: { src?: string | null } | null;
   images?: { src?: string | null }[] | null;
+};
+
+type ShopifyProductVariant = {
+  id: number;
+  product_id: number;
+  title?: string | null;
+  sku?: string | null;
 };
 
 type ShopifyOrderLineItem = {
   id: number;
   product_id: number | null;
+  variant_id?: number | null;
   title: string;
   quantity: number;
   price: string; // stringified decimal
@@ -178,7 +187,7 @@ export async function fetchShopifyProducts(
     (data) => data.products ?? [],
     {
       limit: 250,
-      fields: "id,title,images,image",
+      fields: "id,title,images,image,variants",
     },
     options,
   );
@@ -241,4 +250,11 @@ export async function fetchShopifyShop(
   return data.shop ?? null;
 }
 
-export type { ShopifyOrder, ShopifyOrderLineItem, ShopifyProduct, ShopifyPaymentTransaction, ShopifyShop };
+export type {
+  ShopifyOrder,
+  ShopifyOrderLineItem,
+  ShopifyProduct,
+  ShopifyProductVariant,
+  ShopifyPaymentTransaction,
+  ShopifyShop,
+};
