@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
 import { logError } from "@/observability";
 
 export async function POST(request: Request) {
   try {
+    const auth = await authenticateApiRequest(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const productId: string | undefined = body?.productId;
     const costPerUnitRaw = body?.costPerUnit;
@@ -28,6 +34,9 @@ export async function POST(request: Request) {
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+    if (!isAuthorizedForShop(auth, product.shop.shopDomain)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (shopDomain && product.shop.shopDomain !== shopDomain) {

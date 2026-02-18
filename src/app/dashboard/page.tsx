@@ -5,6 +5,7 @@ import { KpiTwoPanelChart } from '@/components/KpiTwoPanelChart';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { SyncStatusPanel } from '@/components/SyncStatusPanel';
 import { formatShopLabel } from '@/lib/shopLabel';
+import { requireAppPageAuth } from '@/lib/auth';
 import {
   getCurrencyFormatter,
   getNumberFormatter,
@@ -37,15 +38,18 @@ type DashboardProps = {
 };
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({
+        where: { shopDomain: { in: authorizedShops } },
         select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true, currency: true, timezone: true },
         orderBy: { installedAt: 'desc' },
       });
     } catch {
       return prisma.shop.findMany({
+        where: { shopDomain: { in: authorizedShops } },
         select: { id: true, shopDomain: true },
         orderBy: { installedAt: 'desc' },
       });

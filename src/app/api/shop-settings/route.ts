@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { authenticateApiRequest, isAuthorizedForShop } from '@/lib/auth';
 
 type Payload = {
   shop?: string;
@@ -17,6 +18,11 @@ function toNumber(value: unknown) {
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const contentType = request.headers.get('content-type') ?? '';
   let payload: Payload = {};
 
@@ -34,6 +40,9 @@ export async function POST(request: Request) {
   const shopDomain = typeof payload.shop === 'string' ? payload.shop : null;
   if (!shopDomain) {
     return NextResponse.json({ error: 'Missing shop domain' }, { status: 400 });
+  }
+  if (!isAuthorizedForShop(auth, shopDomain)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const paymentFeePct = toNumber(payload.paymentFeePct);

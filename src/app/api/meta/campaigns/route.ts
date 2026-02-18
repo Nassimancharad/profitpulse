@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { fetchMetaCampaigns } from "@/lib/meta";
+import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
 
 type CampaignRow = {
   id: string;
@@ -22,9 +23,17 @@ async function parseShop(request: Request): Promise<string | null> {
 }
 
 export async function GET(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const shopDomain = await parseShop(request);
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop (?shop=...)" }, { status: 400 });
+  }
+  if (!isAuthorizedForShop(auth, shopDomain)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const shop = await prisma.shop.findUnique({
@@ -46,6 +55,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const shopDomain = await parseShop(request);
   const url = new URL(request.url);
   const maxPagesParam = url.searchParams.get("maxPages");
@@ -53,6 +67,9 @@ export async function POST(request: Request) {
   const pageLimit = maxPages && Number.isFinite(maxPages) && maxPages > 0 ? maxPages : undefined;
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop (?shop=...)" }, { status: 400 });
+  }
+  if (!isAuthorizedForShop(auth, shopDomain)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const shop = await prisma.shop.findUnique({

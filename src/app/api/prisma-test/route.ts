@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { authenticateApiRequest } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   try {
     const [shopCount, productCount, orderCount, orderLineCount, adSpendCount] =
       await Promise.all([

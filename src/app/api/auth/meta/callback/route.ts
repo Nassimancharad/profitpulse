@@ -54,14 +54,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing code" }, { status: 400 });
   }
 
-  const verifiedShop = await verifyState(state);
-  const shopDomain = verifiedShop ?? url.searchParams.get("shop");
-
+  const shopDomain = await verifyState(state);
   if (!shopDomain) {
     return NextResponse.json({ error: "Invalid or missing state" }, { status: 400 });
-  }
-  if (!verifiedShop) {
-    logWarn("meta_state_unverified_fallback", { shopDomain });
   }
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });

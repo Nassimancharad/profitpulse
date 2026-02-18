@@ -4,10 +4,23 @@ import crypto from "node:crypto";
 import prisma from "@/lib/prisma";
 import { fetchShopifyShop } from "@/lib/shopifyAdmin";
 import { normalizeCurrencyCode } from "@/lib/currency";
+import { extendAuthorizedShopsCookie } from "@/lib/auth";
 import { normalizeShopTimezone } from "@/lib/timezone";
-import { logWarn } from "@/observability";
+import { logError, logWarn } from "@/observability";
 
 const requiredEnv = ["SHOPIFY_API_KEY", "SHOPIFY_API_SECRET", "SHOPIFY_APP_URL"] as const;
+
+function isMissingColumnError(error: unknown, columnName: string) {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = message.match(/The column `([^`]+)` does not exist/);
+  if (!match) {
+    return false;
+  }
+
+  const rawColumn = match[1];
+  const normalizedColumn = rawColumn.split(".").pop()?.replaceAll('"', "");
+  return normalizedColumn === columnName;
+}
 
 function getEnv() {
   const missing = requiredEnv.filter((key) => !process.env[key]);
@@ -150,22 +163,64 @@ export async function GET(request: Request) {
     });
   }
 
-  await prisma.shop.upsert({
-    where: { shopDomain: shop },
-    update: {
-      accessToken,
-      installedAt: new Date(),
-      ...(shopCurrency ? { currency: shopCurrency } : {}),
-      timezone: shopTimezone,
-    },
-    create: {
+  try {
+    try {
+      await prisma.shop.upsert({
+        where: { shopDomain: shop },
+        update: {
+          accessToken,
+          installedAt: new Date(),
+          ...(shopCurrency ? { currency: shopCurrency } : {}),
+          timezone: shopTimezone,
+        },
+        create: {
+          shopDomain: shop,
+          accessToken,
+          installedAt: new Date(),
+          currency: shopCurrency ?? undefined,
+          timezone: shopTimezone,
+        },
+      });
+    } catch (error) {
+      // Backward compatibility for environments where latest Shop columns are not migrated yet.
+      if (isMissingColumnError(error, "timezone")) {
+        logWarn("shopify_oauth_timezone_column_missing_fallback", { shopDomain: shop });
+        await prisma.shop.upsert({
+          where: { shopDomain: shop },
+          update: {
+            accessToken,
+            installedAt: new Date(),
+            ...(shopCurrency ? { currency: shopCurrency } : {}),
+          },
+          create: {
+            shopDomain: shop,
+            accessToken,
+            installedAt: new Date(),
+            currency: shopCurrency ?? undefined,
+          },
+        });
+      } else {
+        throw error;
+      }
+    }
+  } catch (error) {
+    logError("shopify_oauth_persist_failed", {
       shopDomain: shop,
-      accessToken,
-      installedAt: new Date(),
-      currency: shopCurrency ?? undefined,
-      timezone: shopTimezone,
-    },
-  });
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    return NextResponse.json({ error: "Failed to persist Shopify connection" }, { status: 500 });
+  }
+
+  try {
+    await extendAuthorizedShopsCookie(shop);
+  } catch (error) {
+    logError("shopify_oauth_session_cookie_failed", {
+      shopDomain: shop,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    const fallbackUrl = `${env.appUrl}/connections?shop=${encodeURIComponent(shop)}&auth=required`;
+    return NextResponse.redirect(fallbackUrl);
+  }
 
   const redirectUrl = `${env.appUrl}/dashboard?shop=${encodeURIComponent(shop)}`;
   return NextResponse.redirect(redirectUrl);

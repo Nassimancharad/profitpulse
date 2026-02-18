@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const url = new URL(request.url);
   const shopDomain = url.searchParams.get("shop");
 
@@ -10,6 +16,9 @@ export async function POST(request: Request) {
 
   if (!shopDomain) {
     return NextResponse.redirect(`${appBase}/connections?meta=missing_shop`);
+  }
+  if (!isAuthorizedForShop(auth, shopDomain)) {
+    return NextResponse.redirect(`${appBase}/connections?meta=forbidden`);
   }
 
   const shop = await prisma.shop.findUnique({

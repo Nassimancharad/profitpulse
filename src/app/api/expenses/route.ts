@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { authenticateApiRequest, isAuthorizedForShop } from '@/lib/auth';
 
 type Payload = {
   shop?: string;
@@ -26,17 +27,39 @@ function parseDate(value?: string) {
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const url = new URL(request.url);
   const deleteId = url.searchParams.get('id');
   const deleteShop = url.searchParams.get('shop');
   if (url.searchParams.get('delete') === '1' && deleteId && deleteShop) {
+    if (!isAuthorizedForShop(auth, deleteShop)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain: deleteShop },
+      select: { id: true },
+    });
+    if (!shop) {
+      return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+    }
+
     if (!(prisma as any).expense?.delete) {
       return NextResponse.json(
         { error: 'Expense model not available. Run Prisma generate/migrate.' },
         { status: 400 },
       );
     }
-    await (prisma as any).expense.delete({ where: { id: deleteId } });
+    await (prisma as any).expense.deleteMany({
+      where: {
+        id: deleteId,
+        OR: [{ shopId: shop.id }, { shopId: null }],
+      },
+    });
     const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, '');
     const origin = appUrl ?? new URL(request.url).origin;
     const redirectUrl = `${origin}/costs?shop=${encodeURIComponent(deleteShop)}&expenses=deleted`;
@@ -63,6 +86,9 @@ export async function POST(request: Request) {
   const shopDomain = typeof payload.shop === 'string' ? payload.shop : null;
   if (!shopDomain) {
     return NextResponse.json({ error: 'Missing shop domain' }, { status: 400 });
+  }
+  if (!isAuthorizedForShop(auth, shopDomain)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const name = payload.name?.trim();
@@ -115,11 +141,27 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
   const shopDomain = url.searchParams.get('shop');
   if (!id || !shopDomain) {
     return NextResponse.json({ error: 'Missing id or shop' }, { status: 400 });
+  }
+  if (!isAuthorizedForShop(auth, shopDomain)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const shop = await prisma.shop.findUnique({
+    where: { shopDomain },
+    select: { id: true },
+  });
+  if (!shop) {
+    return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
   }
 
   if (!(prisma as any).expense?.delete) {
@@ -129,7 +171,12 @@ export async function DELETE(request: Request) {
     );
   }
 
-  await (prisma as any).expense.delete({ where: { id } });
+  await (prisma as any).expense.deleteMany({
+    where: {
+      id,
+      OR: [{ shopId: shop.id }, { shopId: null }],
+    },
+  });
 
   const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, '');
   const origin = appUrl ?? new URL(request.url).origin;

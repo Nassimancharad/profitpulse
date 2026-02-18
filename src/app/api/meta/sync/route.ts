@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { syncMetaSpend } from "@/ingestion";
+import { authenticateApiRequest, isAuthorizedForShop, resolveRequestedShop } from "@/lib/auth";
 
 function parseMaxPages(value: string | null) {
   const parsed = value ? Number.parseInt(value, 10) : null;
@@ -7,6 +8,11 @@ function parseMaxPages(value: string | null) {
 }
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const url = new URL(request.url);
   const queryShop = url.searchParams.get("shop");
   const queryStart = url.searchParams.get("start");
@@ -29,8 +35,19 @@ export async function POST(request: Request) {
     // no-op: query params remain source of truth
   }
 
+  const resolvedShop = resolveRequestedShop(queryShop, bodyShop);
+  if (!resolvedShop.ok) {
+    return NextResponse.json({ error: resolvedShop.error }, { status: 400 });
+  }
+  if (!resolvedShop.shopDomain) {
+    return NextResponse.json({ error: "Missing shop. Provide ?shop=<myshop>.myshopify.com." }, { status: 400 });
+  }
+  if (!isAuthorizedForShop(auth, resolvedShop.shopDomain)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const result = await syncMetaSpend({
-    shopDomain: queryShop ?? bodyShop,
+    shopDomain: resolvedShop.shopDomain,
     start: queryStart ?? bodyStart,
     end: queryEnd ?? bodyEnd,
     maxPages: queryMaxPages ?? bodyMaxPages,

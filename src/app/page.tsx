@@ -25,6 +25,7 @@ export default function Home() {
         <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
           <Link
             href="/dashboard"
+            prefetch={false}
             className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-900 shadow-lg shadow-orange-200/60 transition hover:-translate-y-0.5 hover:shadow-orange-300/60"
           >
             Open dashboard →

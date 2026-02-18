@@ -3,6 +3,7 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopConnectForm } from '@/components/ShopConnectForm';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
+import { requireAppPageAuth } from '@/lib/auth';
 import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
 
@@ -13,8 +14,10 @@ type SettingsPageProps = {
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops = await prisma.shop.findMany({
+    where: { shopDomain: { in: authorizedShops } },
     select: { id: true, shopDomain: true },
     orderBy: { installedAt: 'desc' },
   });
