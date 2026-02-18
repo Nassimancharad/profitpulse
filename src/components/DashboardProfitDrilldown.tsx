@@ -159,6 +159,8 @@ export function DashboardProfitDrilldown({
       shippingCost: selectedOrder.shippingCost,
       adCostAllocated: selectedOrder.adCostAllocated,
       paymentFee: selectedOrder.paymentFee,
+      netProductRevenue: selectedOrder.netProductRevenue,
+      netShippingRevenue: selectedOrder.netShippingRevenue,
     });
   }, [selectedOrder, selectedOrderLines]);
 
@@ -262,6 +264,9 @@ export function DashboardProfitDrilldown({
                 <th className="px-3 py-2 font-medium">Qty</th>
                 <th className="px-3 py-2 font-medium">Share</th>
                 <th className="px-3 py-2 font-medium">Revenue</th>
+                <th className="px-3 py-2 font-medium">Refund alloc.</th>
+                <th className="px-3 py-2 font-medium">Ship rev alloc.</th>
+                <th className="px-3 py-2 font-medium">Net revenue</th>
                 <th className="px-3 py-2 font-medium">COGS</th>
                 <th className="px-3 py-2 font-medium">Gross profit</th>
                 <th className="px-3 py-2 font-medium">Alloc. shipping</th>
@@ -275,13 +280,13 @@ export function DashboardProfitDrilldown({
             <tbody className="divide-y divide-black/5">
               {!selectedOrder ? (
                 <tr>
-                  <td className="px-3 py-6 text-[color:var(--pp-muted)]" colSpan={12}>
+                  <td className="px-3 py-6 text-[color:var(--pp-muted)]" colSpan={15}>
                     Select an order above to view line-level breakdown.
                   </td>
                 </tr>
               ) : lineBreakdown.length === 0 ? (
                 <tr>
-                  <td className="px-3 py-6 text-[color:var(--pp-muted)]" colSpan={12}>
+                  <td className="px-3 py-6 text-[color:var(--pp-muted)]" colSpan={15}>
                     No line items found for this order.
                   </td>
                 </tr>
@@ -301,6 +306,9 @@ export function DashboardProfitDrilldown({
                       <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{numberFormatter.format(line.quantity)}</td>
                       <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{percentFormatter.format(line.allocationShare)}</td>
                       <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{currencyFormatter.format(line.lineRevenue)}</td>
+                      <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{currencyFormatter.format(line.allocatedProductRefund)}</td>
+                      <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{currencyFormatter.format(line.allocatedNetShippingRevenue)}</td>
+                      <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{currencyFormatter.format(line.netLineRevenue)}</td>
                       <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{currencyFormatter.format(line.lineCost)}</td>
                       <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{currencyFormatter.format(line.grossProfit)}</td>
                       <td className="px-3 py-2.5 text-[color:var(--pp-foreground)]">{currencyFormatter.format(line.allocatedShippingCost)}</td>
