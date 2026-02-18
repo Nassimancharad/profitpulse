@@ -150,3 +150,50 @@ test('buildSeriesForRange returns stable daily series for fixture data', () => {
   assertClose(storeSeries[0].valuesByKpi.profit[0], aggregateSeries.profit[0]);
   assertClose(storeSeries[0].valuesByKpi.profit[1], aggregateSeries.profit[1]);
 });
+
+test('buildSeriesForRange buckets orders by shop timezone boundaries', () => {
+  const startDate = new Date('2025-01-10T05:00:00.000Z');
+  const endDate = new Date('2025-01-11T04:59:59.999Z');
+
+  const { dateKeys, aggregateSeries } = buildSeriesForRange({
+    startDate,
+    endDate,
+    shopIds: ['shop-1'],
+    shops: [{ id: 'shop-1', shopDomain: 'demo.myshopify.com' }],
+    activeShopId: 'shop-1',
+    timezone: 'America/New_York',
+    orders: [
+      {
+        id: 'ord-1',
+        shopId: 'shop-1',
+        createdAt: new Date('2025-01-11T02:30:00.000Z'),
+        shippingRevenue: 0,
+        refundedProductAmount: 0,
+        refundedShippingAmount: 0,
+      },
+      {
+        id: 'ord-2',
+        shopId: 'shop-1',
+        createdAt: new Date('2025-01-11T05:30:00.000Z'),
+        shippingRevenue: 0,
+        refundedProductAmount: 0,
+        refundedShippingAmount: 0,
+      },
+    ],
+    orderLines: [
+      { orderId: 'ord-1', quantity: 1, lineRevenue: 100, product: { costPerUnit: 0 } },
+      { orderId: 'ord-2', quantity: 1, lineRevenue: 200, product: { costPerUnit: 0 } },
+    ],
+    shippingCostRules: [],
+    adSpends: [],
+    useAllocatedAdSpend: false,
+    portfolioAdAllocationsByDate: [],
+    expenseAllocations: [],
+    netRevenueByShop: new Map([['shop-1', 300]]),
+    feeConfigByShop: new Map([['shop-1', { pct: 0, fixed: 0 }]]),
+  });
+
+  assert.deepEqual(dateKeys, ['2025-01-10']);
+  assert.deepEqual(aggregateSeries.orders, [1]);
+  assert.deepEqual(aggregateSeries.revenue, [100]);
+});

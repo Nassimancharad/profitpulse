@@ -16,6 +16,7 @@ import prisma from '@/lib/prisma';
 import { type AdSpendInput } from '@/lib/profit';
 import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from '@/lib/portfolioAdSpend';
 import { buildDailyKpiSeries } from '@/analytics';
+import { addDaysToDateKey, dayBoundsForDateKey, formatDateForTimezone, normalizeShopTimezone, parseDateKey, toTimeZoneDateKey } from '@/lib/timezone';
 import { logWarn } from '@/observability';
 import type { ReactNode } from 'react';
 import {
@@ -40,7 +41,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({
-        select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true, currency: true },
+        select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true, currency: true, timezone: true },
         orderBy: { installedAt: 'desc' },
       });
     } catch {
@@ -77,22 +78,24 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     : sharedCurrency;
   const currencyFormatter = getCurrencyFormatter({ currency: displayCurrency });
 
+  const timezone = normalizeShopTimezone(activeShop?.timezone);
   const today = new Date();
-  const defaultEnd = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-  const defaultStart = new Date(defaultEnd);
-  defaultStart.setDate(defaultEnd.getDate() - 29);
+  const defaultEndDateKey = toTimeZoneDateKey(today, timezone);
+  const defaultStartDateKey = addDaysToDateKey(defaultEndDateKey, -29);
 
-  const parsedStart = parseDateParam(resolvedSearchParams?.start) ?? defaultStart;
-  const parsedEnd = parseDateParam(resolvedSearchParams?.end) ?? defaultEnd;
-  const startDate = atStartOfDay(parsedStart);
-  const endDate = atEndOfDay(parsedEnd);
+  const startDateKey = parseDateKeyParam(resolvedSearchParams?.start) ?? defaultStartDateKey;
+  const endDateKey = parseDateKeyParam(resolvedSearchParams?.end) ?? defaultEndDateKey;
+  const { start: startDate } = dayBoundsForDateKey(startDateKey, timezone);
+  const { end: endDate } = dayBoundsForDateKey(endDateKey, timezone);
   const rangeDays = Math.max(
     1,
-    Math.round((atStartOfDay(endDate).getTime() - atStartOfDay(startDate).getTime()) / (24 * 60 * 60 * 1000)) + 1,
+    Math.round((Date.UTC(...dateKeyToUtcParts(endDateKey)) - Date.UTC(...dateKeyToUtcParts(startDateKey))) / (24 * 60 * 60 * 1000)) + 1,
   );
-  const previousEnd = atEndOfDay(new Date(startDate.getTime() - 24 * 60 * 60 * 1000));
-  const previousStart = atStartOfDay(new Date(previousEnd.getTime() - (rangeDays - 1) * 24 * 60 * 60 * 1000));
-  const comparisonLabel = `vs ${formatShortDate(previousStart)} – ${formatShortDate(previousEnd)}`;
+  const previousEndDateKey = addDaysToDateKey(startDateKey, -1);
+  const previousStartDateKey = addDaysToDateKey(previousEndDateKey, -(rangeDays - 1));
+  const { start: previousStart } = dayBoundsForDateKey(previousStartDateKey, timezone);
+  const { end: previousEnd } = dayBoundsForDateKey(previousEndDateKey, timezone);
+  const comparisonLabel = `vs ${formatDateForTimezone(previousStart, timezone)} – ${formatDateForTimezone(previousEnd, timezone)}`;
 
   const [
     orderLines,
@@ -307,6 +310,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     expenseAllocations,
     netRevenueByShop,
     feeConfigByShop,
+    timezone,
   });
 
   const [previousOrderLines, previousOrders, previousAdSpends, previousPortfolioAdAllocationsByDate] =
@@ -416,6 +420,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     expenseAllocations: previousKpis.expenseAllocations,
     netRevenueByShop: previousKpis.netRevenueByShop,
     feeConfigByShop: previousKpis.feeConfigByShop,
+    timezone,
   });
 
   const totalCosts =
@@ -523,12 +528,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
   const freshness = buildFreshness(lastDataAt);
 
-  const periodLabel = `${formatShortDate(startDate)} – ${formatShortDate(endDate)}`;
+  const periodLabel = `${formatDateForTimezone(startDate, timezone)} – ${formatDateForTimezone(endDate, timezone)}`;
 
   const timeControl = (
     <TimeRangeSelector
-      startDate={startDate.toISOString().slice(0, 10)}
-      endDate={endDate.toISOString().slice(0, 10)}
+      startDate={startDateKey}
+      endDate={endDateKey}
     />
   );
 
@@ -940,26 +945,18 @@ function buildFreshness(lastDataAt: Date | null): Freshness {
   return { status: "stale", label: "Stale", detail: `${hours}h ago` };
 }
 
-function parseDateParam(value?: string) {
+function parseDateKeyParam(value?: string) {
   if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseDateKey(value) ? value : null;
 }
 
-function atStartOfDay(date: Date) {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-function atEndOfDay(date: Date) {
-  const copy = new Date(date);
-  copy.setHours(23, 59, 59, 999);
-  return copy;
-}
-
-function formatShortDate(date: Date) {
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function dateKeyToUtcParts(dateKey: string): [number, number, number] {
+  const parsed = parseDateKey(dateKey);
+  if (!parsed) {
+    const today = new Date();
+    return [today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()];
+  }
+  return [parsed.year, parsed.month - 1, parsed.day];
 }
 
 const KPI_OPTIONS: Array<{ key: "revenue" | "orders" | "cogs" | "adSpend" | "profit" | "margin" | "roas"; label: string; format: "currency" | "number" | "percent" | "ratio" }> = [

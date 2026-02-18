@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import prisma from "@/lib/prisma";
 import { fetchShopifyShop } from "@/lib/shopifyAdmin";
 import { normalizeCurrencyCode } from "@/lib/currency";
+import { normalizeShopTimezone } from "@/lib/timezone";
 import { logWarn } from "@/observability";
 
 const requiredEnv = ["SHOPIFY_API_KEY", "SHOPIFY_API_SECRET", "SHOPIFY_APP_URL"] as const;
@@ -137,9 +138,11 @@ export async function GET(request: Request) {
   }
 
   let shopCurrency: string | null = null;
+  let shopTimezone = "UTC";
   try {
     const shopSettings = await fetchShopifyShop(shop, accessToken);
     shopCurrency = normalizeCurrencyCode(shopSettings?.currency);
+    shopTimezone = normalizeShopTimezone(shopSettings?.iana_timezone);
   } catch (error) {
     logWarn("shopify_shop_settings_failed", {
       shopDomain: shop,
@@ -153,12 +156,14 @@ export async function GET(request: Request) {
       accessToken,
       installedAt: new Date(),
       ...(shopCurrency ? { currency: shopCurrency } : {}),
+      timezone: shopTimezone,
     },
     create: {
       shopDomain: shop,
       accessToken,
       installedAt: new Date(),
       currency: shopCurrency ?? undefined,
+      timezone: shopTimezone,
     },
   });
 

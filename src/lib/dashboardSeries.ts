@@ -1,6 +1,7 @@
 import { formatShopLabel } from '@/lib/shopLabel';
 import { resolveShippingCost, type ShippingCostRuleInput } from '@/lib/shippingCost';
 import { getTotalExpensesForView } from '@/lib/expenses';
+import { addDaysToDateKey, normalizeShopTimezone, toTimeZoneDateKey } from '@/lib/timezone';
 import {
   calculateNetProfitForOrder,
   calculateNetRevenueForOrder,
@@ -82,21 +83,17 @@ function createEmptyDaily(): DailyMetrics {
   };
 }
 
-function toDateKey(value: Date) {
-  const day = new Date(value);
-  day.setHours(0, 0, 0, 0);
-  return day.toISOString().slice(0, 10);
+function toDateKey(value: Date, timezone: string) {
+  return toTimeZoneDateKey(value, timezone);
 }
 
-function buildDateKeys(start: Date, end: Date) {
+function buildDateKeys(start: Date, end: Date, timezone: string) {
   const keys: string[] = [];
-  const cursor = new Date(start);
-  cursor.setHours(0, 0, 0, 0);
-  const last = new Date(end);
-  last.setHours(0, 0, 0, 0);
-  while (cursor <= last) {
-    keys.push(cursor.toISOString().slice(0, 10));
-    cursor.setDate(cursor.getDate() + 1);
+  let cursorKey = toDateKey(start, timezone);
+  const lastKey = toDateKey(end, timezone);
+  while (cursorKey <= lastKey) {
+    keys.push(cursorKey);
+    cursorKey = addDaysToDateKey(cursorKey, 1);
   }
   return keys;
 }
@@ -115,6 +112,7 @@ export function normalizeSeriesInputs({
   portfolioAdAllocationsByDate,
   expenseAllocations,
   netRevenueByShop,
+  timezone,
 }: {
   startDate: Date;
   endDate: Date;
@@ -129,8 +127,10 @@ export function normalizeSeriesInputs({
   portfolioAdAllocationsByDate: Array<{ shopId: string; date: Date; amountSpent: number }>;
   expenseAllocations: Array<{ shopId: string | null; allocatedAmount: number }>;
   netRevenueByShop: Map<string, number>;
+  timezone?: string | null;
 }): NormalizedSeriesInputs {
-  const dateKeys = buildDateKeys(startDate, endDate);
+  const resolvedTimezone = normalizeShopTimezone(timezone);
+  const dateKeys = buildDateKeys(startDate, endDate, resolvedTimezone);
   const dailyByShop = new Map<string, Map<string, DailyMetrics>>();
   for (const shopId of shopIds) {
     const dayMap = new Map<string, DailyMetrics>();
@@ -154,7 +154,7 @@ export function normalizeSeriesInputs({
     const shopId = (order as any).shopId ?? activeShopId;
     if (!shopId) continue;
     const createdAt = (order as any).createdAt ?? startDate;
-    const dateKey = toDateKey(createdAt);
+    const dateKey = toDateKey(createdAt, resolvedTimezone);
     orderInfoById.set(order.id, {
       shopId,
       dateKey,
@@ -182,13 +182,13 @@ export function normalizeSeriesInputs({
   const adSpendByKey = new Map<string, number>();
   if (useAllocatedAdSpend) {
     for (const row of portfolioAdAllocationsByDate) {
-      const dateKey = toDateKey(row.date);
+      const dateKey = toDateKey(row.date, resolvedTimezone);
       const key = `${row.shopId}::${dateKey}`;
       adSpendByKey.set(key, (adSpendByKey.get(key) ?? 0) + row.amountSpent);
     }
   } else {
     for (const spend of adSpends) {
-      const dateKey = toDateKey(spend.date);
+      const dateKey = toDateKey(spend.date, resolvedTimezone);
       const key = `${spend.shopId}::${dateKey}`;
       adSpendByKey.set(key, (adSpendByKey.get(key) ?? 0) + spend.amountSpent);
     }
@@ -304,6 +304,7 @@ export function buildSeriesForRange({
   expenseAllocations,
   netRevenueByShop,
   feeConfigByShop,
+  timezone,
 }: {
   startDate: Date;
   endDate: Date;
@@ -319,6 +320,7 @@ export function buildSeriesForRange({
   expenseAllocations: Array<{ shopId: string | null; allocatedAmount: number }>;
   netRevenueByShop: Map<string, number>;
   feeConfigByShop: Map<string, { pct: number; fixed: number }>;
+  timezone?: string | null;
 }) {
   const normalized = normalizeSeriesInputs({
     startDate,
@@ -334,6 +336,7 @@ export function buildSeriesForRange({
     portfolioAdAllocationsByDate,
     expenseAllocations,
     netRevenueByShop,
+    timezone,
   });
 
   computeDailyAggregates(normalized, orders, feeConfigByShop);

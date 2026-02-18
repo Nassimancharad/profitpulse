@@ -25,6 +25,7 @@ export type ShopOverview = {
   paymentFeePct?: number | null;
   paymentFeeFixed?: number | null;
   currency?: string | null;
+  timezone?: string | null;
 };
 
 export type OrderInput = {
