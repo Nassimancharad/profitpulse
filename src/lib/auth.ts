@@ -120,14 +120,6 @@ function verifySignedSessionValue(value: string | null | undefined, secret: stri
   }
 }
 
-function isSecureCookie() {
-  const configuredUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "");
-  if (configuredUrl) {
-    return configuredUrl.startsWith("https://");
-  }
-  return process.env.NODE_ENV === "production";
-}
-
 export async function getAuthorizedShopsFromCookie(): Promise<string[]> {
   try {
     const secret = getApiSecret();
@@ -159,8 +151,9 @@ export async function setAuthorizedShopsCookie(shops: string[]) {
   const cookieStore = await cookies();
   cookieStore.set(APP_SESSION_COOKIE, value, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: isSecureCookie(),
+    // Embedded apps run inside Shopify's cross-site iframe context.
+    sameSite: "none",
+    secure: true,
     path: "/",
     maxAge: APP_SESSION_TTL_SECONDS,
   });
@@ -186,8 +179,8 @@ export async function clearAuthorizedShopsCookie() {
   const cookieStore = await cookies();
   cookieStore.set(APP_SESSION_COOKIE, "", {
     httpOnly: true,
-    sameSite: "lax",
-    secure: isSecureCookie(),
+    sameSite: "none",
+    secure: true,
     path: "/",
     maxAge: 0,
   });

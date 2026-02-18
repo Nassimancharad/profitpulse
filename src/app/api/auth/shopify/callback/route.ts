@@ -12,7 +12,14 @@ const requiredEnv = ["SHOPIFY_API_KEY", "SHOPIFY_API_SECRET", "SHOPIFY_APP_URL"]
 
 function isMissingColumnError(error: unknown, columnName: string) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes(`The column \`${columnName}\` does not exist`);
+  const match = message.match(/The column `([^`]+)` does not exist/);
+  if (!match) {
+    return false;
+  }
+
+  const rawColumn = match[1];
+  const normalizedColumn = rawColumn.split(".").pop()?.replaceAll('"', "");
+  return normalizedColumn === columnName;
 }
 
 function getEnv() {
