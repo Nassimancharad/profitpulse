@@ -26,12 +26,46 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
     notFound();
   }
 
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    include: {
-      shop: true,
-    },
-  });
+  const product = await (async () => {
+    try {
+      return await prisma.product.findUnique({
+        where: { id: productId },
+        select: {
+          id: true,
+          shopId: true,
+          title: true,
+          imageUrl: true,
+          costPerUnit: true,
+          shop: {
+            select: {
+              id: true,
+              shopDomain: true,
+              currency: true,
+              timezone: true,
+            },
+          },
+        },
+      });
+    } catch {
+      return prisma.product.findUnique({
+        where: { id: productId },
+        select: {
+          id: true,
+          shopId: true,
+          title: true,
+          imageUrl: true,
+          costPerUnit: true,
+          shop: {
+            select: {
+              id: true,
+              shopDomain: true,
+              currency: true,
+            },
+          },
+        },
+      });
+    }
+  })();
 
   if (!product) {
     return (
@@ -134,6 +168,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
     <TimeRangeSelector
       startDate={startDate.toISOString().slice(0, 10)}
       endDate={endDate.toISOString().slice(0, 10)}
+      timezone={(product.shop as { timezone?: string | null }).timezone ?? "UTC"}
     />
   );
 

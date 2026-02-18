@@ -5,25 +5,14 @@ import {
   type OrderProfitResult,
 } from '@/domain/profit-engine/order-profit';
 
-function atStartOfDay(date: Date) {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-function atEndOfDay(date: Date) {
-  const copy = new Date(date);
-  copy.setHours(23, 59, 59, 999);
-  return copy;
-}
-
 export async function getOrderProfitBreakdown(
   shopId: string,
   start: Date,
   end: Date,
+  timezone?: string | null,
 ): Promise<OrderProfitResult> {
-  const startDate = atStartOfDay(start);
-  const endDate = atEndOfDay(end);
+  const startDate = new Date(start);
+  const endDate = new Date(end);
 
   const orders = await (async () => {
     try {
@@ -113,5 +102,6 @@ export async function getOrderProfitBreakdown(
     lineInputs,
     adSpends,
     shippingCostRules,
+    timezone,
   );
 }

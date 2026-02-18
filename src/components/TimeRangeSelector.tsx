@@ -2,15 +2,17 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { addDaysToDateKey, parseDateKey, toTimeZoneDateKey } from "@/lib/timezone";
 
 type Preset = "today" | "7d" | "30d" | "custom";
 
 type Props = {
   startDate: string;
   endDate: string;
+  timezone: string;
 };
 
-export function TimeRangeSelector({ startDate, endDate }: Props) {
+export function TimeRangeSelector({ startDate, endDate, timezone }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -52,14 +54,15 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
   }, [dialogOpen]);
 
   const label = useMemo(() => {
-    const startObj = new Date(startDate);
-    const endObj = new Date(endDate);
+    const startObj = dateKeyToDate(startDate);
+    const endObj = dateKeyToDate(endDate);
+    if (!startObj || !endObj) return `${startDate} – ${endDate}`;
     const sameDay =
-      startObj.getFullYear() === endObj.getFullYear() &&
-      startObj.getMonth() === endObj.getMonth() &&
-      startObj.getDate() === endObj.getDate();
+      startObj.getUTCFullYear() === endObj.getUTCFullYear() &&
+      startObj.getUTCMonth() === endObj.getUTCMonth() &&
+      startObj.getUTCDate() === endObj.getUTCDate();
     const fmt = (d: Date) =>
-      d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
     if (sameDay) return fmt(startObj);
     return `${fmt(startObj)} – ${fmt(endObj)}`;
   }, [startDate, endDate]);
@@ -80,18 +83,14 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
       setDialogOpen(true);
       return;
     }
-    const today = new Date();
-    const end = today.toISOString().slice(0, 10);
+    const todayDateKey = toTimeZoneDateKey(new Date(), timezone);
+    const end = todayDateKey;
     let start = end;
     if (next === "7d") {
-      const s = new Date();
-      s.setDate(today.getDate() - 6);
-      start = s.toISOString().slice(0, 10);
+      start = addDaysToDateKey(end, -6);
     }
     if (next === "30d") {
-      const s = new Date();
-      s.setDate(today.getDate() - 29);
-      start = s.toISOString().slice(0, 10);
+      start = addDaysToDateKey(end, -29);
     }
     if (next === "today") {
       start = end;
@@ -194,6 +193,12 @@ export function TimeRangeSelector({ startDate, endDate }: Props) {
       ) : null}
     </div>
   );
+}
+
+function dateKeyToDate(value: string) {
+  const parsed = parseDateKey(value);
+  if (!parsed) return null;
+  return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day));
 }
 
 function PresetButton({

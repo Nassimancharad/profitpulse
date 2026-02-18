@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { calculateNetRevenueForOrder } from "@/lib/profit";
+import { normalizeShopTimezone, toTimeZoneDateKey } from "@/lib/timezone";
 
 export type AdAccountLink = {
   shopId: string;
@@ -30,17 +31,17 @@ export type ShopDailyAdSpend = {
   amountSpent: number;
 };
 
-function toDateKey(value: Date) {
-  const day = new Date(value);
-  day.setHours(0, 0, 0, 0);
-  return day.toISOString().slice(0, 10);
+function toDateKey(value: Date, timezone: string) {
+  return toTimeZoneDateKey(value, timezone);
 }
 
 export function allocateAdSpendByShop(
   adAccounts: AdAccountLink[],
   adSpends: AdSpendRow[],
   revenues: ShopRevenueRow[],
+  timezone?: string | null,
 ): ShopAllocation[] {
+  const resolvedTimezone = normalizeShopTimezone(timezone);
   const accountShops = new Map<string, string[]>();
   for (const link of adAccounts) {
     const list = accountShops.get(link.adAccountId) ?? [];
@@ -52,7 +53,7 @@ export function allocateAdSpendByShop(
 
   const shopRevenueByDate = new Map<string, Map<string, number>>();
   for (const row of revenues) {
-    const dateKey = toDateKey(row.date);
+    const dateKey = toDateKey(row.date, resolvedTimezone);
     const shopMap = shopRevenueByDate.get(dateKey) ?? new Map<string, number>();
     shopMap.set(row.shopId, (shopMap.get(row.shopId) ?? 0) + row.netRevenue);
     shopRevenueByDate.set(dateKey, shopMap);
@@ -60,7 +61,7 @@ export function allocateAdSpendByShop(
 
   const spendByShopAccountDate = new Map<string, number>();
   for (const spend of adSpends) {
-    const dateKey = toDateKey(spend.date);
+    const dateKey = toDateKey(spend.date, resolvedTimezone);
     const key = `${spend.shopId}::${spend.adAccountId}::${dateKey}`;
     spendByShopAccountDate.set(key, (spendByShopAccountDate.get(key) ?? 0) + spend.amountSpent);
   }
@@ -101,7 +102,9 @@ export function allocateAdSpendByShopByDate(
   adAccounts: AdAccountLink[],
   adSpends: AdSpendRow[],
   revenues: ShopRevenueRow[],
+  timezone?: string | null,
 ): ShopDailyAdSpend[] {
+  const resolvedTimezone = normalizeShopTimezone(timezone);
   const accountShops = new Map<string, string[]>();
   for (const link of adAccounts) {
     const list = accountShops.get(link.adAccountId) ?? [];
@@ -113,7 +116,7 @@ export function allocateAdSpendByShopByDate(
 
   const shopRevenueByDate = new Map<string, Map<string, number>>();
   for (const row of revenues) {
-    const dateKey = toDateKey(row.date);
+    const dateKey = toDateKey(row.date, resolvedTimezone);
     const shopMap = shopRevenueByDate.get(dateKey) ?? new Map<string, number>();
     shopMap.set(row.shopId, (shopMap.get(row.shopId) ?? 0) + row.netRevenue);
     shopRevenueByDate.set(dateKey, shopMap);
@@ -121,7 +124,7 @@ export function allocateAdSpendByShopByDate(
 
   const spendByShopAccountDate = new Map<string, number>();
   for (const spend of adSpends) {
-    const dateKey = toDateKey(spend.date);
+    const dateKey = toDateKey(spend.date, resolvedTimezone);
     const key = `${spend.shopId}::${spend.adAccountId}::${dateKey}`;
     spendByShopAccountDate.set(key, (spendByShopAccountDate.get(key) ?? 0) + spend.amountSpent);
   }
@@ -163,25 +166,14 @@ export function allocateAdSpendByShopByDate(
   });
 }
 
-function atStartOfDay(date: Date) {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-function atEndOfDay(date: Date) {
-  const copy = new Date(date);
-  copy.setHours(23, 59, 59, 999);
-  return copy;
-}
-
 export async function getAllocatedAdSpendByShop(
   shopIds: string[],
   start: Date,
   end: Date,
+  timezone?: string | null,
 ): Promise<ShopAllocation[]> {
-  const startDate = atStartOfDay(start);
-  const endDate = atEndOfDay(end);
+  const startDate = new Date(start);
+  const endDate = new Date(end);
 
   const [adAccounts, adSpends, orders, orderLines] = await Promise.all([
     prisma.metaAdAccount.findMany({
@@ -237,16 +229,17 @@ export async function getAllocatedAdSpendByShop(
     };
   });
 
-  return allocateAdSpendByShop(adAccounts, adSpends, revenueRows);
+  return allocateAdSpendByShop(adAccounts, adSpends, revenueRows, timezone);
 }
 
 export async function getAllocatedAdSpendByShopByDate(
   shopIds: string[],
   start: Date,
   end: Date,
+  timezone?: string | null,
 ): Promise<ShopDailyAdSpend[]> {
-  const startDate = atStartOfDay(start);
-  const endDate = atEndOfDay(end);
+  const startDate = new Date(start);
+  const endDate = new Date(end);
 
   const [adAccounts, adSpends, orders, orderLines] = await Promise.all([
     prisma.metaAdAccount.findMany({
@@ -302,5 +295,5 @@ export async function getAllocatedAdSpendByShopByDate(
     };
   });
 
-  return allocateAdSpendByShopByDate(adAccounts, adSpends, revenueRows);
+  return allocateAdSpendByShopByDate(adAccounts, adSpends, revenueRows, timezone);
 }

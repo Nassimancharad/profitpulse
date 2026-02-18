@@ -85,8 +85,18 @@ type LineSeries = {
 
 type Granularity = "daily" | "weekly";
 
+function dateKeyToUtcDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 function getISOWeek(date: Date) {
-  const temp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const temp = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const dayNum = temp.getUTCDay() || 7;
   temp.setUTCDate(temp.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(temp.getUTCFullYear(), 0, 1));
@@ -94,7 +104,7 @@ function getISOWeek(date: Date) {
 }
 
 function getISOWeekYear(date: Date) {
-  const temp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const temp = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const dayNum = temp.getUTCDay() || 7;
   temp.setUTCDate(temp.getUTCDate() + 4 - dayNum);
   return temp.getUTCFullYear();
@@ -107,12 +117,13 @@ function groupByWeek(
 ) {
   const buckets = new Map<string, { label: string; values: number[] }>();
   dateKeys.forEach((key, index) => {
-    const date = new Date(key);
+    const date = dateKeyToUtcDate(key);
+    if (!date) return;
     const week = getISOWeek(date);
     const year = getISOWeekYear(date);
     const bucketKey = `${year}-W${week}`;
     const label = new Date(date.getTime());
-    label.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    label.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
     const labelKey = label.toISOString().slice(0, 10);
     const bucket = buckets.get(bucketKey) ?? { label: labelKey, values: [] };
     bucket.values.push(values[index] ?? 0);
@@ -209,22 +220,34 @@ function LineChart({
   }, [dateKeys.length, series, padding.left, padding.right, padding.top, padding.bottom]);
 
   const ticks = buildTicks(points.min, points.max, compact ? 3 : 4);
-  const shortDate = (value: string) =>
-    new Date(value).toLocaleDateString("nl-NL", { month: "short", day: "numeric" });
+  const shortDate = (value: string) => {
+    const date = dateKeyToUtcDate(value);
+    return date
+      ? date.toLocaleDateString("nl-NL", { month: "short", day: "numeric", timeZone: "UTC" })
+      : value;
+  };
   const weekLabel = (value: string) => {
-    const date = new Date(value);
+    const date = dateKeyToUtcDate(value);
+    if (!date) return value;
     const week = getISOWeek(date);
     return `Week ${week}`;
   };
   const tooltipLabel = (value: string) => {
+    const date = dateKeyToUtcDate(value);
+    if (!date) return value;
     if (granularity === "weekly") {
-      const start = new Date(value);
+      const start = new Date(date);
       const end = new Date(start);
-      end.setDate(start.getDate() + 6);
-      const fmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short" });
+      end.setUTCDate(start.getUTCDate() + 6);
+      const fmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", timeZone: "UTC" });
       return `Week ${getISOWeek(start)} · ${fmt.format(start)}–${fmt.format(end)}`;
     }
-    return new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+    return new Intl.DateTimeFormat("nl-NL", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(date);
   };
 
   const hoverX = hoverIndex !== null ? points.toX(hoverIndex) : null;

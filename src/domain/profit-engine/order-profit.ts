@@ -1,4 +1,5 @@
 import { resolveShippingCost, type ShippingCostRuleInput } from './shipping-cost';
+import { normalizeShopTimezone, toTimeZoneDateKey } from '@/lib/timezone';
 import {
   calculateNetProfitForOrder,
   calculateNetRevenueForOrder,
@@ -74,10 +75,8 @@ type OrderProfitWorking = {
   paymentFeeFixed: number;
 };
 
-function toDateKey(value: Date) {
-  const day = new Date(value);
-  day.setHours(0, 0, 0, 0);
-  return day.toISOString().slice(0, 10);
+function toDateKey(value: Date, timezone: string) {
+  return toTimeZoneDateKey(value, timezone);
 }
 
 export function calculateOrderProfitBreakdown(
@@ -85,8 +84,10 @@ export function calculateOrderProfitBreakdown(
   orderLines: OrderProfitInputLine[],
   adSpends: OrderProfitInputAdSpend[],
   shippingCostRules: ShippingCostRuleInput[],
+  timezone?: string | null,
 ): OrderProfitResult {
   const warnings: string[] = [];
+  const resolvedTimezone = normalizeShopTimezone(timezone);
   const orderMap = new Map<string, OrderProfitWorking>();
 
   for (const order of orders) {
@@ -136,13 +137,13 @@ export function calculateOrderProfitBreakdown(
 
   const spendByDate = new Map<string, number>();
   for (const spend of adSpends) {
-    const key = toDateKey(spend.date);
+    const key = toDateKey(spend.date, resolvedTimezone);
     spendByDate.set(key, (spendByDate.get(key) ?? 0) + spend.amountSpent);
   }
 
   const ordersByDate = new Map<string, OrderProfitWorking[]>();
   for (const entry of orderMap.values()) {
-    const key = toDateKey(entry.createdAt);
+    const key = toDateKey(entry.createdAt, resolvedTimezone);
     const bucket = ordersByDate.get(key) ?? [];
     bucket.push(entry);
     ordersByDate.set(key, bucket);
