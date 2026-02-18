@@ -18,6 +18,7 @@ model Shop {
   accessToken String
   installedAt DateTime
   currency    String?
+  timezone    String     @default("UTC")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   paymentFeePct Float    @default(0)

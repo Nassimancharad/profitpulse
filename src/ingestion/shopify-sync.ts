@@ -7,6 +7,7 @@ import {
   type ShopifyProduct,
 } from "@/lib/shopifyAdmin";
 import { normalizeCurrencyCode } from "@/lib/currency";
+import { normalizeShopTimezone } from "@/lib/timezone";
 import { acquireSyncLock, recordSyncError, recordSyncSuccess } from "@/data/syncState";
 import { buildIdempotencyKey, finishJobRun, startJobRun } from "@/jobs";
 import { logWarn } from "@/observability";
@@ -78,6 +79,7 @@ export async function syncShopifyStoreData(params: {
   let products: ShopifyProduct[] = [];
   let orders: ShopifyOrder[] = [];
   let shopCurrency: string | null = null;
+  let shopTimezone: string | null = null;
 
   try {
     const options = params.maxPages ? { maxPages: params.maxPages } : undefined;
@@ -95,6 +97,7 @@ export async function syncShopifyStoreData(params: {
     products = productsResult;
     orders = ordersResult;
     shopCurrency = normalizeCurrencyCode(shopSettings?.currency);
+    shopTimezone = normalizeShopTimezone(shopSettings?.iana_timezone);
   } catch (error) {
     finishJobRun(run, "error");
     await recordSyncError({
@@ -109,16 +112,23 @@ export async function syncShopifyStoreData(params: {
     };
   }
 
-  if (shopCurrency && shopCurrency !== shopRecord.currency) {
+  const shouldUpdateShopSettings =
+    (shopCurrency && shopCurrency !== shopRecord.currency) ||
+    (shopTimezone && shopTimezone !== shopRecord.timezone);
+
+  if (shouldUpdateShopSettings) {
     try {
       await prisma.shop.update({
         where: { id: shopRecord.id },
-        data: { currency: shopCurrency },
+        data: {
+          ...(shopCurrency ? { currency: shopCurrency } : {}),
+          ...(shopTimezone ? { timezone: shopTimezone } : {}),
+        },
       });
     } catch (error) {
-      logWarn("shop_currency_update_failed", {
+      logWarn("shop_settings_update_failed", {
         shopDomain: shopRecord.shopDomain,
-        error: error instanceof Error ? error.message : "Failed to update shop currency",
+        error: error instanceof Error ? error.message : "Failed to update shop settings",
       });
     }
   }
