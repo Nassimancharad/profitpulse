@@ -4,14 +4,10 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import prisma from '@/lib/prisma';
 import { formatShopLabel } from '@/lib/shopLabel';
+import { getCurrencyFormatter, getSharedCurrency, normalizeCurrencyCode } from '@/lib/currency';
 import { computeProductProfitByProductId } from '@/domain/profit-engine';
 
 export const dynamic = 'force-dynamic';
-
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'EUR',
-});
 
 type ProductsPageProps = {
   searchParams?: Promise<{ start?: string; end?: string; shop?: string; q?: string }>;
@@ -22,6 +18,7 @@ type ShopOverview = {
   shopDomain: string;
   paymentFeePct?: number | null;
   paymentFeeFixed?: number | null;
+  currency?: string | null;
 };
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
@@ -29,7 +26,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({
-        select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true },
+        select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true, currency: true },
         orderBy: { installedAt: 'desc' },
       });
     } catch {
@@ -59,6 +56,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     : null;
   const activeShop = selectedShop ?? (shops.length === 1 ? shops[0] : null);
   const shopIds = activeShop ? [activeShop.id] : shops.map((shopItem) => shopItem.id);
+  const sharedCurrency = getSharedCurrency(shops.map((shopItem) => shopItem.currency));
+  const displayCurrency = activeShop
+    ? normalizeCurrencyCode(activeShop.currency)
+    : sharedCurrency;
+  const currencyFormatter = getCurrencyFormatter({ currency: displayCurrency });
 
   const today = new Date();
   const defaultEnd = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));

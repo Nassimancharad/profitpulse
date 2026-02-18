@@ -9,25 +9,9 @@ import { ProductCostEditor } from './ProductCostEditor';
 import { ProductCampaignLinker } from './ProductCampaignLinker';
 import { formatShopLabel } from '@/lib/shopLabel';
 import { computeLineProfitMetrics, computeProductProfitSummary } from '@/domain/profit-engine';
+import { getCurrencyFormatter, getNumberFormatter, getPercentFormatter } from '@/lib/currency';
 
 export const dynamic = 'force-dynamic';
-
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'EUR',
-});
-
-const numberFormatter = new Intl.NumberFormat('en-US');
-
-const percentFormatter = new Intl.NumberFormat('en-US', {
-  style: 'percent',
-  maximumFractionDigits: 1,
-});
-
-const roasFormatter = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 2,
-});
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -69,6 +53,14 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
       </AppShell>
     );
   }
+
+  const currencyFormatter = getCurrencyFormatter({ currency: product.shop.currency });
+  const numberFormatter = getNumberFormatter();
+  const percentFormatter = getPercentFormatter('en-US', { maximumFractionDigits: 1 });
+  const roasFormatter = getNumberFormatter('en-US', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 2,
+  });
 
   const today = new Date();
   const defaultEnd = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));

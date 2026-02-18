@@ -24,6 +24,7 @@ export type ShopOverview = {
   shopDomain: string;
   paymentFeePct?: number | null;
   paymentFeeFixed?: number | null;
+  currency?: string | null;
 };
 
 export type OrderInput = {

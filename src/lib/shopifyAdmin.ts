@@ -60,6 +60,13 @@ type ShopifyPaymentTransaction = {
   created_at?: string | null;
 };
 
+type ShopifyShop = {
+  id?: number | null;
+  name?: string | null;
+  currency?: string | null;
+  iana_timezone?: string | null;
+};
+
 function shopifyBaseUrl(shopDomain: string) {
   return `https://${shopDomain}/admin/api/${API_VERSION}`;
 }
@@ -217,4 +224,21 @@ export async function fetchShopifyPaymentTransactions(
   );
 }
 
-export type { ShopifyOrder, ShopifyOrderLineItem, ShopifyProduct, ShopifyPaymentTransaction };
+export async function fetchShopifyShop(
+  shopDomain: string,
+  accessToken: string,
+  options?: FetchOptions,
+): Promise<ShopifyShop | null> {
+  const { data } = await shopifyGet<{ shop?: ShopifyShop }>(
+    shopDomain,
+    accessToken,
+    "/shop.json",
+    {
+      fields: "id,name,currency,iana_timezone",
+    },
+    options,
+  );
+  return data.shop ?? null;
+}
+
+export type { ShopifyOrder, ShopifyOrderLineItem, ShopifyProduct, ShopifyPaymentTransaction, ShopifyShop };
