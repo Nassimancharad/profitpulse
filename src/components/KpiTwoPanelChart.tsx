@@ -47,6 +47,7 @@ type ValueFormatters = {
   currencyFormatter: Intl.NumberFormat;
   numberFormatter: Intl.NumberFormat;
   percentFormatter: Intl.NumberFormat;
+  ratioFormatter?: Intl.NumberFormat;
 };
 
 function formatValue(
@@ -244,7 +245,10 @@ function LineChart({
       return axisFormatters.currencyFormatter.format(value);
     }
     if (format === "percent") return axisFormatters.percentFormatter.format(value);
-    if (format === "ratio") return `${axisFormatters.numberFormatter.format(value)}x`;
+    if (format === "ratio") {
+      const formatter = axisFormatters.ratioFormatter ?? axisFormatters.numberFormatter;
+      return `${formatter.format(value)}x`;
+    }
     return axisFormatters.numberFormatter.format(value);
   };
 
@@ -542,6 +546,9 @@ export function KpiTwoPanelChart({
         compactDisplay: "short",
       }),
       percentFormatter: getPercentFormatter("en-US", { maximumFractionDigits: 1 }),
+      ratioFormatter: getNumberFormatter("en-US", {
+        maximumFractionDigits: 1,
+      }),
     }),
     [currency],
   );
