@@ -2,11 +2,14 @@ import prisma from "@/lib/prisma";
 import {
   fetchShopifyOrders,
   fetchShopifyProducts,
+  fetchShopifyShop,
   type ShopifyOrder,
   type ShopifyProduct,
 } from "@/lib/shopifyAdmin";
+import { normalizeCurrencyCode } from "@/lib/currency";
 import { acquireSyncLock, recordSyncError, recordSyncSuccess } from "@/data/syncState";
 import { buildIdempotencyKey, finishJobRun, startJobRun } from "@/jobs";
+import { logWarn } from "@/observability";
 
 export type ShopifySyncResult = {
   shop: string;
@@ -74,13 +77,24 @@ export async function syncShopifyStoreData(params: {
 
   let products: ShopifyProduct[] = [];
   let orders: ShopifyOrder[] = [];
+  let shopCurrency: string | null = null;
 
   try {
     const options = params.maxPages ? { maxPages: params.maxPages } : undefined;
-    [products, orders] = await Promise.all([
+    const [shopSettings, productsResult, ordersResult] = await Promise.all([
+      fetchShopifyShop(shopRecord.shopDomain, shopRecord.accessToken, options).catch((error) => {
+        logWarn("shopify_shop_settings_failed", {
+          shopDomain: shopRecord.shopDomain,
+          error: error instanceof Error ? error.message : "Failed to fetch Shopify shop settings",
+        });
+        return null;
+      }),
       fetchShopifyProducts(shopRecord.shopDomain, shopRecord.accessToken, options),
       fetchShopifyOrders(shopRecord.shopDomain, shopRecord.accessToken, createdAtMinIso, options),
     ]);
+    products = productsResult;
+    orders = ordersResult;
+    shopCurrency = normalizeCurrencyCode(shopSettings?.currency);
   } catch (error) {
     finishJobRun(run, "error");
     await recordSyncError({
@@ -93,6 +107,20 @@ export async function syncShopifyStoreData(params: {
       status: 502,
       error: error instanceof Error ? error.message : "Failed to fetch from Shopify",
     };
+  }
+
+  if (shopCurrency && shopCurrency !== shopRecord.currency) {
+    try {
+      await prisma.shop.update({
+        where: { id: shopRecord.id },
+        data: { currency: shopCurrency },
+      });
+    } catch (error) {
+      logWarn("shop_currency_update_failed", {
+        shopDomain: shopRecord.shopDomain,
+        error: error instanceof Error ? error.message : "Failed to update shop currency",
+      });
+    }
   }
 
   try {

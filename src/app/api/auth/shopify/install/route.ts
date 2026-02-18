@@ -54,6 +54,7 @@ export async function GET(request: Request) {
   const appBase =
     process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") ||
     origin;
+  const isSecure = appBase.startsWith("https://");
 
   if (!isValidShopDomain(shop)) {
     return NextResponse.redirect(`${appBase}/connections?shopify=invalid_shop`);
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
   cookieStore.set("shopify_state", state, {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: isSecure,
     path: "/",
     maxAge: 300, // 5 minutes
   });

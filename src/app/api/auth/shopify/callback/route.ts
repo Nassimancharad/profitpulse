@@ -2,6 +2,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import prisma from "@/lib/prisma";
+import { fetchShopifyShop } from "@/lib/shopifyAdmin";
+import { normalizeCurrencyCode } from "@/lib/currency";
+import { logWarn } from "@/observability";
 
 const requiredEnv = ["SHOPIFY_API_KEY", "SHOPIFY_API_SECRET", "SHOPIFY_APP_URL"] as const;
 
@@ -133,16 +136,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: message }, { status: 400 });
   }
 
+  let shopCurrency: string | null = null;
+  try {
+    const shopSettings = await fetchShopifyShop(shop, accessToken);
+    shopCurrency = normalizeCurrencyCode(shopSettings?.currency);
+  } catch (error) {
+    logWarn("shopify_shop_settings_failed", {
+      shopDomain: shop,
+      error: error instanceof Error ? error.message : "Failed to fetch Shopify shop settings",
+    });
+  }
+
   await prisma.shop.upsert({
     where: { shopDomain: shop },
     update: {
       accessToken,
       installedAt: new Date(),
+      ...(shopCurrency ? { currency: shopCurrency } : {}),
     },
     create: {
       shopDomain: shop,
       accessToken,
       installedAt: new Date(),
+      currency: shopCurrency ?? undefined,
     },
   });
 

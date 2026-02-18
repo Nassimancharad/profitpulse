@@ -5,6 +5,13 @@ import { KpiTwoPanelChart } from '@/components/KpiTwoPanelChart';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { SyncStatusPanel } from '@/components/SyncStatusPanel';
 import { formatShopLabel } from '@/lib/shopLabel';
+import {
+  getCurrencyFormatter,
+  getNumberFormatter,
+  getPercentFormatter,
+  getSharedCurrency,
+  normalizeCurrencyCode,
+} from '@/lib/currency';
 import prisma from '@/lib/prisma';
 import { type AdSpendInput } from '@/lib/profit';
 import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from '@/lib/portfolioAdSpend';
@@ -21,18 +28,8 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'EUR',
-});
-
-const numberFormatter = new Intl.NumberFormat('en-US');
-
-const percentFormatter = new Intl.NumberFormat('en-US', {
-  style: 'percent',
-  maximumFractionDigits: 1,
-});
-
+const numberFormatter = getNumberFormatter();
+const percentFormatter = getPercentFormatter('en-US', { maximumFractionDigits: 1 });
 
 type DashboardProps = {
   searchParams?: Promise<{ start?: string; end?: string; shop?: string }>;
@@ -43,7 +40,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({
-        select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true },
+        select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true, currency: true },
         orderBy: { installedAt: 'desc' },
       });
     } catch {
@@ -74,6 +71,11 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const activeShop = selectedShop ?? (shops.length === 1 ? shops[0] : null);
   const useAllocatedAdSpend = shops.length > 1;
   const shopIds = activeShop ? [activeShop.id] : shops.map((shopItem) => shopItem.id);
+  const sharedCurrency = getSharedCurrency(shops.map((shopItem) => shopItem.currency));
+  const displayCurrency = activeShop
+    ? normalizeCurrencyCode(activeShop.currency)
+    : sharedCurrency;
+  const currencyFormatter = getCurrencyFormatter({ currency: displayCurrency });
 
   const today = new Date();
   const defaultEnd = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
@@ -585,11 +587,13 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
                 title="Revenue breakdown"
                 description="Gross revenue, refunds, and fees in the selected period."
                 items={revenueBreakdown}
+                currencyFormatter={currencyFormatter}
               />
               <BreakdownList
                 title="Cost breakdown"
                 description="COGS, ads, fees, and expenses in the selected period."
                 items={costBreakdown}
+                currencyFormatter={currencyFormatter}
               />
             </div>
           </div>
@@ -611,6 +615,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           storeSeries={[]}
           defaultSelected={["revenue", "profit", "adSpend"]}
           defaultCompare="revenue"
+          currency={displayCurrency}
         />
       </div>
     </AppShell>
@@ -764,10 +769,12 @@ function BreakdownList({
   title,
   description,
   items,
+  currencyFormatter,
 }: {
   title: string;
   description: string;
   items: Array<{ label: string; value: number; hint?: string }>;
+  currencyFormatter: Intl.NumberFormat;
 }) {
   return (
     <Card className="p-5">

@@ -17,6 +17,7 @@ model Shop {
   shopDomain  String     @unique // e.g. mystore.myshopify.com
   accessToken String
   installedAt DateTime
+  currency    String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   paymentFeePct Float    @default(0)

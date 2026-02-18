@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { DropdownSelect } from "./DropdownSelect";
+import { getCurrencyFormatter, getNumberFormatter, getPercentFormatter } from "@/lib/currency";
 
 export type KpiKey = "revenue" | "orders" | "cogs" | "adSpend" | "profit" | "margin" | "roas";
 
@@ -29,6 +30,7 @@ type Props = {
   storeSeries: StoreSeries[];
   defaultSelected: KpiKey[];
   defaultCompare: KpiKey;
+  currency?: string | null;
 };
 
 const COLORS = [
@@ -41,22 +43,22 @@ const COLORS = [
   "#14b8a6",
 ];
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "EUR",
-  maximumFractionDigits: 0,
-});
-const numberFormatter = new Intl.NumberFormat("en-US");
-const percentFormatter = new Intl.NumberFormat("en-US", {
-  style: "percent",
-  maximumFractionDigits: 1,
-});
+type ValueFormatters = {
+  currencyFormatter: Intl.NumberFormat;
+  numberFormatter: Intl.NumberFormat;
+  percentFormatter: Intl.NumberFormat;
+  ratioFormatter?: Intl.NumberFormat;
+};
 
-function formatValue(format: KpiOption["format"], value: number) {
-  if (format === "currency") return currencyFormatter.format(value);
-  if (format === "percent") return percentFormatter.format(value);
-  if (format === "ratio") return `${numberFormatter.format(value)}x`;
-  return numberFormatter.format(value);
+function formatValue(
+  format: KpiOption["format"],
+  value: number,
+  formatters: ValueFormatters,
+) {
+  if (format === "currency") return formatters.currencyFormatter.format(value);
+  if (format === "percent") return formatters.percentFormatter.format(value);
+  if (format === "ratio") return `${formatters.numberFormatter.format(value)}x`;
+  return formatters.numberFormatter.format(value);
 }
 
 function buildTicks(min: number, max: number, count: number) {
@@ -158,6 +160,8 @@ function LineChart({
   granularity,
   comparisonValues,
   fixedHeight,
+  valueFormatters,
+  axisFormatters,
 }: {
   dateKeys: string[];
   series: LineSeries[];
@@ -167,6 +171,8 @@ function LineChart({
   granularity: Granularity;
   comparisonValues?: number[];
   fixedHeight?: number;
+  valueFormatters: ValueFormatters;
+  axisFormatters: ValueFormatters;
 }) {
   const chartId = useId();
   const clipId = `${chartId}-clip`;
@@ -236,21 +242,14 @@ function LineChart({
 
   const formatAxisValue = (value: number) => {
     if (format === "currency") {
-      return new Intl.NumberFormat("nl-NL", {
-        style: "currency",
-        currency: "EUR",
-        maximumFractionDigits: 0,
-        notation: "compact",
-        compactDisplay: "short",
-      }).format(value);
+      return axisFormatters.currencyFormatter.format(value);
     }
-    if (format === "percent") return percentFormatter.format(value);
-    if (format === "ratio") return `${numberFormatter.format(value)}x`;
-    return new Intl.NumberFormat("nl-NL", {
-      maximumFractionDigits: 0,
-      notation: "compact",
-      compactDisplay: "short",
-    }).format(value);
+    if (format === "percent") return axisFormatters.percentFormatter.format(value);
+    if (format === "ratio") {
+      const formatter = axisFormatters.ratioFormatter ?? axisFormatters.numberFormatter;
+      return `${formatter.format(value)}x`;
+    }
+    return axisFormatters.numberFormatter.format(value);
   };
 
   useEffect(() => {
@@ -451,11 +450,11 @@ function LineChart({
                 {tooltipLabel(dateKeys[hoverIndex] ?? "")}
               </text>
               <text x={tooltipX + 12} y={padding.top + 42} fontSize="12" fontWeight="600" fill="rgba(17,18,22,0.9)">
-                {formatValue(format, primaryValue)}
+                {formatValue(format, primaryValue, valueFormatters)}
               </text>
               {compareValue !== null ? (
                 <text x={tooltipX + 12} y={padding.top + 58} fontSize="11" fill="rgba(17,18,22,0.6)">
-                  Prev {formatValue(format, compareValue)}
+                  Prev {formatValue(format, compareValue, valueFormatters)}
                 </text>
               ) : null}
               {hoverIndex > 0 ? (() => {
@@ -471,7 +470,7 @@ function LineChart({
                 const delta = (primaryValue - base) / Math.abs(base);
                 return (
                   <text x={tooltipX + 12} y={padding.top + 72} fontSize="11" fill="rgba(17,18,22,0.6)">
-                    Δ {percentFormatter.format(delta)}
+                    Δ {valueFormatters.percentFormatter.format(delta)}
                   </text>
                 );
               })() : null}
@@ -513,10 +512,46 @@ export function KpiTwoPanelChart({
   storeSeries,
   defaultSelected,
   defaultCompare,
+  currency,
 }: Props) {
   const [selectedKpis] = useState<KpiKey[]>(defaultSelected);
   const [compareKpi, setCompareKpi] = useState<KpiKey>(defaultCompare);
   const [granularity, setGranularity] = useState<Granularity>("daily");
+  const valueFormatters = useMemo(
+    () => ({
+      currencyFormatter: getCurrencyFormatter({
+        currency,
+        locale: "en-US",
+        options: { maximumFractionDigits: 0 },
+      }),
+      numberFormatter: getNumberFormatter("en-US"),
+      percentFormatter: getPercentFormatter("en-US", { maximumFractionDigits: 1 }),
+    }),
+    [currency],
+  );
+  const axisFormatters = useMemo(
+    () => ({
+      currencyFormatter: getCurrencyFormatter({
+        currency,
+        locale: "nl-NL",
+        options: {
+          maximumFractionDigits: 0,
+          notation: "compact",
+          compactDisplay: "short",
+        },
+      }),
+      numberFormatter: getNumberFormatter("nl-NL", {
+        maximumFractionDigits: 0,
+        notation: "compact",
+        compactDisplay: "short",
+      }),
+      percentFormatter: getPercentFormatter("en-US", { maximumFractionDigits: 1 }),
+      ratioFormatter: getNumberFormatter("en-US", {
+        maximumFractionDigits: 1,
+      }),
+    }),
+    [currency],
+  );
 
   const selectedOptions = kpiOptions.filter((option) => selectedKpis.includes(option.key));
   const compareOption = kpiOptions.find((option) => option.key === compareKpi) ?? kpiOptions[0];
@@ -563,7 +598,7 @@ export function KpiTwoPanelChart({
           const deltaLabel =
             deltaPct === null
               ? "—"
-              : `${deltaPct >= 0 ? "+" : ""}${percentFormatter.format(deltaPct)}`;
+              : `${deltaPct >= 0 ? "+" : ""}${valueFormatters.percentFormatter.format(deltaPct)}`;
           const deltaTone = deltaPct === null ? "text-[color:var(--pp-muted)]" : deltaPct >= 0 ? "text-emerald-600" : "text-rose-600";
           const cardSpan =
             line.id === "profit" ? "lg:col-span-2" : "lg:col-span-1";
@@ -583,7 +618,7 @@ export function KpiTwoPanelChart({
                 </div>
                 <div className="mt-2 flex flex-wrap items-baseline gap-2">
                   <div className="text-2xl font-semibold text-[color:var(--pp-foreground)]">
-                    {formatValue(line.format, currentTotal)}
+                    {formatValue(line.format, currentTotal, valueFormatters)}
                   </div>
                   <div className="text-xs text-[color:var(--pp-muted)]">
                     {comparisonLabel && comparisonLabel.trim().length > 0 ? comparisonLabel : "vs previous period"}
@@ -629,6 +664,8 @@ export function KpiTwoPanelChart({
                     line.id === "profit" ? 240 : line.id === "revenue" || line.id === "adSpend" ? 220 : 200
                   }
                   comparisonValues={compareTransformed.values}
+                  valueFormatters={valueFormatters}
+                  axisFormatters={axisFormatters}
                 />
               )}
             </div>
@@ -656,7 +693,14 @@ export function KpiTwoPanelChart({
             />
           </div>
           <div className="mt-4 rounded-2xl border border-[color:var(--pp-border)] bg-white/60 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-            <LineChart dateKeys={dateKeys} series={storeLines} format={compareOption.format} granularity={granularity} />
+            <LineChart
+              dateKeys={dateKeys}
+              series={storeLines}
+              format={compareOption.format}
+              granularity={granularity}
+              valueFormatters={valueFormatters}
+              axisFormatters={axisFormatters}
+            />
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-xs text-[color:var(--pp-muted)]">
             {storeLines.map((line) => (
