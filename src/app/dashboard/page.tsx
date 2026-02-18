@@ -1,7 +1,7 @@
 import { AppShell } from '@/components/AppShell';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
-import { KpiTwoPanelChart } from '@/components/KpiTwoPanelChart';
+import { DashboardProfitDrilldown } from '@/components/DashboardProfitDrilldown';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { SyncStatusPanel } from '@/components/SyncStatusPanel';
 import { formatShopLabel } from '@/lib/shopLabel';
@@ -23,6 +23,8 @@ import type { ReactNode } from 'react';
 import {
   computePortfolioKPIs,
   computeStoreKPIs,
+  calculateOrderProfitBreakdown,
+  resolveLineCostPerUnit,
   type OrderInput,
   type OrderLineInput,
   type ShopOverview,
@@ -111,6 +113,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
 
   const [
     orderLines,
+    drilldownLines,
     totalOrders,
     adSpendsRaw,
     orders,
@@ -136,6 +139,35 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         },
       },
     }),
+    activeShop
+      ? prisma.orderLine.findMany({
+          where: {
+            order: {
+              shopId: activeShop.id,
+              createdAt: { gte: startDate, lte: endDate },
+            },
+          },
+          select: {
+            id: true,
+            orderId: true,
+            quantity: true,
+            lineRevenue: true,
+            product: {
+              select: {
+                title: true,
+                costPerUnit: true,
+              },
+            },
+            variant: {
+              select: {
+                title: true,
+                sku: true,
+                costPerUnit: true,
+              },
+            },
+          },
+        })
+      : Promise.resolve([]),
     prisma.order.count({
       where: {
         shopId: { in: shopIds },
@@ -160,6 +192,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           },
           select: {
             id: true,
+            shopifyOrderId: true,
             shopId: true,
             createdAt: true,
             shippingRevenue: true,
@@ -358,12 +391,13 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
               shopId: { in: shopIds },
               createdAt: { gte: previousStart, lte: previousEnd },
             },
-            select: {
-              id: true,
-              shopId: true,
-              createdAt: true,
-              shippingRevenue: true,
-              shippingCost: true,
+          select: {
+            id: true,
+            shopifyOrderId: true,
+            shopId: true,
+            createdAt: true,
+            shippingRevenue: true,
+            shippingCost: true,
               shippingCountryCode: true,
               refundedProductAmount: true,
               refundedShippingAmount: true,
@@ -442,6 +476,91 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     feeConfigByShop: previousKpis.feeConfigByShop,
     timezone,
   });
+
+  const drilldownData = activeShop
+    ? (() => {
+        const feeConfig = feeConfigByShop.get(activeShop.id) ?? {
+          pct: activeShop.paymentFeePct ?? 0,
+          fixed: activeShop.paymentFeeFixed ?? 0,
+        };
+        const drilldownAdSpends = useAllocatedAdSpend
+          ? portfolioAdAllocationsByDate
+              .filter((allocation) => allocation.shopId === activeShop.id)
+              .map((allocation) => ({
+                date: allocation.date,
+                amountSpent: allocation.amountSpent,
+              }))
+          : adSpendsRaw.map((item) => ({
+              date: item.date,
+              amountSpent: item.amountSpent,
+            }));
+
+        const orderProfit = calculateOrderProfitBreakdown(
+          orders.map((order) => ({
+            id: order.id,
+            shopifyOrderId: (order as any).shopifyOrderId ?? order.id,
+            createdAt: (order as any).createdAt ?? startDate,
+            shippingRevenue: (order as any).shippingRevenue ?? 0,
+            shippingCost: (order as any).shippingCost ?? null,
+            shippingCountryCode: ((order as any).shippingCountryCode ?? null) as string | null,
+            refundedProductAmount: (order as any).refundedProductAmount ?? 0,
+            refundedShippingAmount: (order as any).refundedShippingAmount ?? 0,
+            paymentFeeActual: (order as any).paymentFeeActual ?? null,
+            paymentFeePct: feeConfig.pct,
+            paymentFeeFixed: feeConfig.fixed,
+          })),
+          orderLines.map((line) => ({
+            orderId: line.orderId,
+            quantity: line.quantity,
+            lineRevenue: line.lineRevenue,
+            costPerUnit: resolveLineCostPerUnit({
+              variantCostPerUnit: line.variant?.costPerUnit ?? null,
+              productCostPerUnit: line.product?.costPerUnit ?? null,
+            }),
+          })),
+          drilldownAdSpends,
+          shippingCostRules,
+          timezone,
+        );
+
+        const shopLabelById = new Map(shops.map((shop) => [shop.id, formatShopLabel(shop.shopDomain)]));
+
+        return {
+          orders: orderProfit.orders.map((order) => {
+            const sourceOrder = orders.find((candidate) => candidate.id === order.orderId);
+            const shopId = (sourceOrder as any)?.shopId ?? activeShop.id;
+            return {
+              orderId: order.orderId,
+              shopifyOrderId: order.shopifyOrderId,
+              createdAt: order.createdAt.toISOString(),
+              dayKey: toTimeZoneDateKey(order.createdAt, timezone),
+              shopLabel: shopLabelById.get(shopId) ?? null,
+              netProductRevenue: order.netProductRevenue,
+              netShippingRevenue: order.netShippingRevenue,
+              cogs: order.cogs,
+              shippingCost: order.shippingCost,
+              adCostAllocated: order.adCostAllocated,
+              paymentFee: order.paymentFee,
+              netProfit: order.netProfit,
+            };
+          }),
+          lines: drilldownLines.map((line) => ({
+            lineId: line.id,
+            orderId: line.orderId,
+            quantity: line.quantity,
+            lineRevenue: line.lineRevenue,
+            costPerUnit: resolveLineCostPerUnit({
+              variantCostPerUnit: line.variant?.costPerUnit ?? null,
+              productCostPerUnit: line.product?.costPerUnit ?? null,
+            }),
+            productTitle: line.product?.title ?? "Unknown product",
+            variantTitle: line.variant?.title ?? null,
+            variantSku: line.variant?.sku ?? null,
+          })),
+          showShopColumn: shops.length > 1,
+        };
+      })()
+    : null;
 
   const totalCosts =
     totalCost + totalAdSpend + totalExpenses + totalPaymentFees + (shippingTotals.shippingCost ?? 0);
@@ -631,18 +750,24 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           </div>
         </div>
 
-        <KpiTwoPanelChart
-          dateKeys={dateKeys}
-          kpiOptions={KPI_OPTIONS}
-          aggregateSeries={aggregateSeries}
-          comparisonSeries={previousAggregateSeries}
-          comparisonDateKeys={previousDateKeys}
-          comparisonLabel={comparisonLabel}
-          storeSeries={[]}
-          defaultSelected={["revenue", "profit", "adSpend"]}
-          defaultCompare="revenue"
-          currency={displayCurrency}
-        />
+        {activeShop && drilldownData ? (
+          <DashboardProfitDrilldown
+            dateKeys={dateKeys}
+            kpiOptions={KPI_OPTIONS}
+            aggregateSeries={aggregateSeries}
+            comparisonSeries={previousAggregateSeries}
+            comparisonDateKeys={previousDateKeys}
+            comparisonLabel={comparisonLabel}
+            currency={displayCurrency}
+            orders={drilldownData.orders}
+            lines={drilldownData.lines}
+            showShopColumn={drilldownData.showShopColumn}
+          />
+        ) : (
+          <Card className="p-5 text-sm text-[color:var(--pp-muted)]">
+            Select a single store to drill from daily KPI charts into orders and line-item profit breakdowns.
+          </Card>
+        )}
       </div>
     </AppShell>
   );

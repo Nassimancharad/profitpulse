@@ -31,6 +31,8 @@ type Props = {
   defaultSelected: KpiKey[];
   defaultCompare: KpiKey;
   currency?: string | null;
+  onDateSelect?: (dateKey: string) => void;
+  selectedDateKey?: string | null;
 };
 
 const COLORS = [
@@ -173,6 +175,8 @@ function LineChart({
   fixedHeight,
   valueFormatters,
   axisFormatters,
+  onDateSelect,
+  selectedDateKey,
 }: {
   dateKeys: string[];
   series: LineSeries[];
@@ -184,6 +188,8 @@ function LineChart({
   fixedHeight?: number;
   valueFormatters: ValueFormatters;
   axisFormatters: ValueFormatters;
+  onDateSelect?: (dateKey: string) => void;
+  selectedDateKey?: string | null;
 }) {
   const chartId = useId();
   const clipId = `${chartId}-clip`;
@@ -251,6 +257,9 @@ function LineChart({
   };
 
   const hoverX = hoverIndex !== null ? points.toX(hoverIndex) : null;
+  const selectedIndex =
+    selectedDateKey != null ? dateKeys.findIndex((key) => key === selectedDateKey) : -1;
+  const selectedX = selectedIndex >= 0 ? points.toX(selectedIndex) : null;
   const primaryValue = hoverIndex !== null ? series[0]?.values[hoverIndex] ?? null : null;
   const compareValue =
     hoverIndex !== null && comparisonValues ? comparisonValues[hoverIndex] ?? null : null;
@@ -502,12 +511,39 @@ function LineChart({
         </g>
       ) : null}
 
+      {selectedX !== null ? (
+        <g>
+          <line
+            x1={selectedX}
+            x2={selectedX}
+            y1={padding.top}
+            y2={height - padding.bottom}
+            stroke="rgba(242,122,40,0.45)"
+            strokeDasharray="4 4"
+            clipPath={`url(#${clipId})`}
+          />
+          <circle
+            cx={selectedX}
+            cy={points.toY(series[0]?.values[selectedIndex] ?? 0)}
+            r="4"
+            fill="white"
+          />
+          <circle
+            cx={selectedX}
+            cy={points.toY(series[0]?.values[selectedIndex] ?? 0)}
+            r="3"
+            fill="rgba(242,122,40,0.9)"
+          />
+        </g>
+      ) : null}
+
       <rect
         x={padding.left}
         y={padding.top}
         width={points.innerWidth}
         height={points.innerHeight}
         fill="transparent"
+        style={onDateSelect ? { cursor: "pointer" } : undefined}
         onMouseMove={(event) => {
           const target = event.currentTarget;
           const rect = target.getBoundingClientRect();
@@ -519,6 +555,18 @@ function LineChart({
           setHoverIndex(index);
         }}
         onMouseLeave={() => setHoverIndex(null)}
+        onClick={(event) => {
+          if (!onDateSelect || dateKeys.length === 0) return;
+          const target = event.currentTarget;
+          const rect = target.getBoundingClientRect();
+          const scale = width / rect.width;
+          const x = (event.clientX - rect.left) * scale;
+          const clamped = Math.max(padding.left, Math.min(x, width - padding.right));
+          const xStep = dateKeys.length > 1 ? points.innerWidth / (dateKeys.length - 1) : 0;
+          const index = xStep ? Math.round((clamped - padding.left) / xStep) : 0;
+          const key = dateKeys[index];
+          if (key) onDateSelect(key);
+        }}
       />
       </svg>
     </div>
@@ -536,6 +584,8 @@ export function KpiTwoPanelChart({
   defaultSelected,
   defaultCompare,
   currency,
+  onDateSelect,
+  selectedDateKey,
 }: Props) {
   const [selectedKpis] = useState<KpiKey[]>(defaultSelected);
   const [compareKpi, setCompareKpi] = useState<KpiKey>(defaultCompare);
@@ -689,6 +739,8 @@ export function KpiTwoPanelChart({
                   comparisonValues={compareTransformed.values}
                   valueFormatters={valueFormatters}
                   axisFormatters={axisFormatters}
+                  onDateSelect={granularity === "daily" ? onDateSelect : undefined}
+                  selectedDateKey={granularity === "daily" ? selectedDateKey : null}
                 />
               )}
             </div>
