@@ -112,7 +112,8 @@ export async function syncShopifyStoreData(params: {
     products = productsResult;
     orders = ordersResult;
     shopCurrency = normalizeCurrencyCode(shopSettings?.currency);
-    shopTimezone = normalizeShopTimezone(shopSettings?.iana_timezone);
+    const fetchedTimezone = shopSettings?.iana_timezone;
+    shopTimezone = fetchedTimezone ? normalizeShopTimezone(fetchedTimezone) : null;
   } catch (error) {
     finishJobRun(run, "error");
     await recordSyncError({
