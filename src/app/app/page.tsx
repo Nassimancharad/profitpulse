@@ -1,10 +1,13 @@
+import { requireAppPageAuth } from "@/lib/auth";
+
 type AppPageProps = {
   searchParams: {
     shop?: string;
   };
 };
 
-export default function AppPage({ searchParams }: AppPageProps) {
+export default async function AppPage({ searchParams }: AppPageProps) {
+  await requireAppPageAuth();
   const shop = searchParams.shop || "unknown-shop";
 
   return (

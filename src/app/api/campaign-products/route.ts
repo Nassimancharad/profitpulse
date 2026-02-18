@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
+    const auth = await authenticateApiRequest(request);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const body = await request.json();
     const productId: string | undefined = body?.productId;
     const campaignId: string | undefined = body?.campaignId;
@@ -14,11 +20,14 @@ export async function POST(request: Request) {
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
-      select: { shopId: true },
+      select: { shopId: true, shop: { select: { shopDomain: true } } },
     });
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+    if (!isAuthorizedForShop(auth, product.shop.shopDomain)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     if (action === "remove") {

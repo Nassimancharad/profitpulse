@@ -3,6 +3,7 @@ import { AppShell } from '@/components/AppShell';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import prisma from '@/lib/prisma';
+import { requireAppPageAuth } from '@/lib/auth';
 import { formatShopLabel } from '@/lib/shopLabel';
 import { getCurrencyFormatter, getSharedCurrency, normalizeCurrencyCode } from '@/lib/currency';
 import { computeProductProfitByProductId } from '@/domain/profit-engine';
@@ -22,15 +23,18 @@ type ShopOverview = {
 };
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({
+        where: { shopDomain: { in: authorizedShops } },
         select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true, currency: true },
         orderBy: { installedAt: 'desc' },
       });
     } catch {
       return prisma.shop.findMany({
+        where: { shopDomain: { in: authorizedShops } },
         select: { id: true, shopDomain: true },
         orderBy: { installedAt: 'desc' },
       });

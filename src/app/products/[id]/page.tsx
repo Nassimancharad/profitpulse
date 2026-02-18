@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { requireAppPageAuth } from '@/lib/auth';
 import { AppShell } from '@/components/AppShell';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { OverflowMenu } from '@/components/OverflowMenu';
@@ -19,6 +20,7 @@ type PageProps = {
 };
 
 export default async function ProductDetailPage({ params, searchParams }: PageProps) {
+  const { authorizedShopSet } = await requireAppPageAuth();
   const { id: productId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
@@ -86,6 +88,9 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
         </div>
       </AppShell>
     );
+  }
+  if (!authorizedShopSet.has(product.shop.shopDomain)) {
+    notFound();
   }
 
   const currencyFormatter = getCurrencyFormatter({ currency: product.shop.currency });

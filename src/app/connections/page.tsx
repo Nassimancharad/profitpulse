@@ -3,6 +3,7 @@ import { MetaSyncButton } from "@/components/MetaSyncButton";
 import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { SyncNowButton } from "@/components/SyncNowButton";
+import { getAuthorizedShopsFromCookie } from "@/lib/auth";
 import { formatShopLabel } from "@/lib/shopLabel";
 import prisma from "@/lib/prisma";
 
@@ -49,7 +50,24 @@ function bannerClasses(tone: StatusTone) {
 
 export default async function ConnectionsPage({ searchParams }: ConnectionsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const authorizedShops = await getAuthorizedShopsFromCookie();
+
+  if (!authorizedShops.length) {
+    return (
+      <AppShell title="Connections" periodLabel="—" shopLabel="No shop">
+        <div className="pp-card glass-surface p-6">
+          <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connect your first store</h2>
+          <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
+            Install the app in Shopify to start syncing orders and costs.
+          </p>
+          <ShopConnectForm />
+        </div>
+      </AppShell>
+    );
+  }
+
   const shops = await prisma.shop.findMany({
+    where: { shopDomain: { in: authorizedShops } },
     select: { id: true, shopDomain: true, installedAt: true },
     orderBy: { installedAt: "desc" },
   });

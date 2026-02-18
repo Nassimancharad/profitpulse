@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import crypto from 'node:crypto';
+import { authenticateApiRequest } from '@/lib/auth';
 
 function maskPresence(value: string | undefined) {
   return Boolean(value);
@@ -21,7 +23,6 @@ function decodeCaPreview() {
   }
   const cleaned = raw.replace(/\\s+/g, "");
   const decoded = Buffer.from(cleaned, "base64").toString("utf-8").trim();
-  const crypto = require("crypto");
   const sha256 = crypto.createHash("sha256").update(decoded).digest("hex");
   return {
     length: decoded.length,
@@ -41,7 +42,12 @@ function getDatabaseHost() {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const caPreview = decodeCaPreview();
   const databaseHost = getDatabaseHost();
   const usesPooler = Boolean(databaseHost && databaseHost.includes("pooler.supabase.com"));

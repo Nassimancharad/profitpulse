@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import {
+  authenticateApiRequest,
+  isAuthorizedForShop,
+  removeAuthorizedShopFromCookie,
+} from "@/lib/auth";
 
 export async function POST(request: Request) {
   const url = new URL(request.url);
@@ -12,6 +17,14 @@ export async function POST(request: Request) {
 
   if (!shopDomain) {
     return NextResponse.redirect(`${appBase}/connections?shopify=missing_shop`);
+  }
+
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+  if (!isAuthorizedForShop(auth, shopDomain)) {
+    return NextResponse.redirect(`${appBase}/connections?shopify=forbidden`);
   }
 
   const shop = await prisma.shop.findUnique({
@@ -33,6 +46,7 @@ export async function POST(request: Request) {
   await prisma.product.deleteMany({ where: { shopId } });
   await prisma.metaAdAccount.deleteMany({ where: { shopId } });
   await prisma.shop.delete({ where: { id: shopId } });
+  await removeAuthorizedShopFromCookie(shopDomain);
 
   return NextResponse.redirect(`${appBase}/connections?shopify=disconnected`);
 }

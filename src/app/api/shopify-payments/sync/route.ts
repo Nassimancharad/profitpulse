@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { syncShopifyPayments } from "@/ingestion";
+import { authenticateApiRequest, isAuthorizedForShop, resolveRequestedShop } from "@/lib/auth";
 
 export async function POST(request: Request) {
+  const auth = await authenticateApiRequest(request);
+  if (!auth.ok) {
+    return auth.response;
+  }
+
   const url = new URL(request.url);
   const queryShop = url.searchParams.get("shop");
   const queryStart = url.searchParams.get("start");
@@ -23,8 +29,19 @@ export async function POST(request: Request) {
     // no-op: query params remain source of truth
   }
 
+  const resolvedShop = resolveRequestedShop(queryShop, bodyShop);
+  if (!resolvedShop.ok) {
+    return NextResponse.json({ error: resolvedShop.error }, { status: 400 });
+  }
+  if (!resolvedShop.shopDomain) {
+    return NextResponse.json({ error: "Missing shop. Provide ?shop=<myshop>.myshopify.com." }, { status: 400 });
+  }
+  if (!isAuthorizedForShop(auth, resolvedShop.shopDomain)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const result = await syncShopifyPayments({
-    shopDomain: queryShop ?? bodyShop,
+    shopDomain: resolvedShop.shopDomain,
     start: queryStart ?? bodyStart,
     end: queryEnd ?? bodyEnd,
     maxPages: queryMaxPages,
@@ -37,7 +54,7 @@ export async function POST(request: Request) {
     if (result.status === 502 && result.reason) {
       const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "");
       const origin = appUrl ?? new URL(request.url).origin;
-      const redirectUrl = `${origin}/costs?shop=${encodeURIComponent(queryShop ?? bodyShop ?? "")}&payments=${result.reason}`;
+      const redirectUrl = `${origin}/costs?shop=${encodeURIComponent(resolvedShop.shopDomain)}&payments=${result.reason}`;
       return NextResponse.redirect(redirectUrl, 303);
     }
     return NextResponse.json({ error: result.error }, { status: result.status });

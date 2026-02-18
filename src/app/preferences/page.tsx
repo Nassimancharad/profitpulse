@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/AppShell";
 import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
+import { requireAppPageAuth } from "@/lib/auth";
 import { formatShopLabel } from "@/lib/shopLabel";
 import prisma from "@/lib/prisma";
 
@@ -11,8 +12,10 @@ type PreferencesPageProps = {
 };
 
 export default async function PreferencesPage({ searchParams }: PreferencesPageProps) {
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops = await prisma.shop.findMany({
+    where: { shopDomain: { in: authorizedShops } },
     select: { id: true, shopDomain: true },
     orderBy: { installedAt: "desc" },
   });
