@@ -11,6 +11,7 @@ import {
   calculateRefundsForOrder,
   calculateShippingRevenueForOrder,
 } from '../src/lib/profit';
+import { resolveLineCostPerUnit } from '../src/domain/profit-engine/costs';
 
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
 const demoData = JSON.parse(
@@ -127,4 +128,20 @@ test('calculateNetProfitForOrder matches order-level net profit math', () => {
   });
 
   assert.equal(netProfit, 2);
+});
+
+test('resolveLineCostPerUnit prefers variant override over product cost', () => {
+  const resolved = resolveLineCostPerUnit({
+    variantCostPerUnit: 9,
+    productCostPerUnit: 4,
+  });
+  assert.equal(resolved, 9);
+});
+
+test('resolveLineCostPerUnit falls back to product cost when variant is missing', () => {
+  const resolved = resolveLineCostPerUnit({
+    variantCostPerUnit: null,
+    productCostPerUnit: 4,
+  });
+  assert.equal(resolved, 4);
 });

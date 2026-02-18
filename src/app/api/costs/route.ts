@@ -12,41 +12,61 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const productId: string | undefined = body?.productId;
+    const variantId: string | undefined = body?.variantId;
     const costPerUnitRaw = body?.costPerUnit;
     const shopDomain: string | undefined = body?.shop;
+    const targetType: "product" | "variant" = body?.targetType === "variant" ? "variant" : "product";
+    const targetId = targetType === "variant" ? variantId : productId;
 
-    if (!productId || costPerUnitRaw === undefined) {
+    if (!targetId || costPerUnitRaw === undefined) {
       return NextResponse.json(
-        { error: "productId and costPerUnit are required" },
+        { error: `${targetType}Id and costPerUnit are required` },
         { status: 400 },
       );
     }
 
-    const parsedCost = Number(costPerUnitRaw);
-    if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+    const parsedCost =
+      costPerUnitRaw === "" || costPerUnitRaw == null ? null : Number(costPerUnitRaw);
+    if (parsedCost != null && (!Number.isFinite(parsedCost) || parsedCost < 0)) {
       return NextResponse.json({ error: "Invalid costPerUnit" }, { status: 400 });
     }
 
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { shop: { select: { shopDomain: true } } },
-    });
+    const target =
+      targetType === "variant"
+        ? await prisma.variant.findUnique({
+            where: { id: targetId },
+            include: { shop: { select: { shopDomain: true } } },
+          })
+        : await prisma.product.findUnique({
+            where: { id: targetId },
+            include: { shop: { select: { shopDomain: true } } },
+          });
 
-    if (!product) {
-      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    if (!target) {
+      return NextResponse.json(
+        { error: targetType === "variant" ? "Variant not found" : "Product not found" },
+        { status: 404 },
+      );
     }
-    if (!isAuthorizedForShop(auth, product.shop.shopDomain)) {
+    if (!isAuthorizedForShop(auth, target.shop.shopDomain)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    if (shopDomain && product.shop.shopDomain !== shopDomain) {
+    if (shopDomain && target.shop.shopDomain !== shopDomain) {
       return NextResponse.json({ error: "Shop mismatch" }, { status: 403 });
     }
 
-    await prisma.product.update({
-      where: { id: productId },
-      data: { costPerUnit: parsedCost },
-    });
+    if (targetType === "variant") {
+      await prisma.variant.update({
+        where: { id: targetId },
+        data: { costPerUnit: parsedCost },
+      });
+    } else {
+      await prisma.product.update({
+        where: { id: targetId },
+        data: { costPerUnit: parsedCost },
+      });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

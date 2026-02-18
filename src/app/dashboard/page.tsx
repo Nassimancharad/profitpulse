@@ -128,7 +128,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
         },
       },
       include: {
-        product: true,
+        product: {
+          select: { costPerUnit: true },
+        },
+        variant: {
+          select: { costPerUnit: true },
+        },
       },
     }),
     prisma.order.count({
@@ -339,6 +344,9 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           quantity: true,
           lineRevenue: true,
           product: {
+            select: { costPerUnit: true },
+          },
+          variant: {
             select: { costPerUnit: true },
           },
         },
