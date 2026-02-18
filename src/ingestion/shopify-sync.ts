@@ -215,7 +215,6 @@ export async function syncShopifyStoreData(params: {
       if (!Number.isFinite(refundedShippingAmount)) refundedShippingAmount = 0;
 
       const lineCreates: Array<{
-        orderId: string;
         productId: string;
         quantity: number;
         lineRevenue: number;
@@ -254,7 +253,6 @@ export async function syncShopifyStoreData(params: {
         productIdMap.set(shopifyProductId, productId);
 
         lineCreates.push({
-          orderId: orderRecord.id,
           productId,
           quantity: line.quantity ?? 0,
           lineRevenue: Number(line.price ?? 0) * (line.quantity ?? 0),
@@ -298,7 +296,14 @@ export async function syncShopifyStoreData(params: {
           const batchSize = 500;
           for (let idx = 0; idx < lineCreates.length; idx += batchSize) {
             const slice = lineCreates.slice(idx, idx + batchSize);
-            await tx.orderLine.createMany({ data: slice });
+            await tx.orderLine.createMany({
+              data: slice.map((line) => ({
+                orderId: record.id,
+                productId: line.productId,
+                quantity: line.quantity,
+                lineRevenue: line.lineRevenue,
+              })),
+            });
           }
         }
 
