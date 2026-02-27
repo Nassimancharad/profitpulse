@@ -26,6 +26,27 @@ type ApiAuthFailure = {
 
 export type ApiAuthResult = ApiAuthSuccess | ApiAuthFailure;
 
+function resolveSessionCookiePolicy() {
+  const appUrl = process.env.SHOPIFY_APP_URL ?? "";
+  const isHttps = /^https:\/\//i.test(appUrl);
+  const isLocalhost = /:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(appUrl);
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // Embedded production/staging apps require cross-site cookie semantics.
+  if (isHttps && (isProduction || !isLocalhost)) {
+    return {
+      sameSite: "none" as const,
+      secure: true,
+    };
+  }
+
+  // Local HTTP development on localhost is more reliable with Lax + non-secure cookies.
+  return {
+    sameSite: "lax" as const,
+    secure: false,
+  };
+}
+
 function getApiSecret() {
   const secret = process.env.SHOPIFY_API_SECRET;
   if (!secret) {
@@ -149,11 +170,11 @@ export async function setAuthorizedShopsCookie(shops: string[]) {
 
   const value = createSignedSessionValue(payload, secret);
   const cookieStore = await cookies();
+  const policy = resolveSessionCookiePolicy();
   cookieStore.set(APP_SESSION_COOKIE, value, {
     httpOnly: true,
-    // Embedded apps run inside Shopify's cross-site iframe context.
-    sameSite: "none",
-    secure: true,
+    sameSite: policy.sameSite,
+    secure: policy.secure,
     path: "/",
     maxAge: APP_SESSION_TTL_SECONDS,
   });
@@ -177,10 +198,11 @@ export async function removeAuthorizedShopFromCookie(shopDomain: string) {
 
 export async function clearAuthorizedShopsCookie() {
   const cookieStore = await cookies();
+  const policy = resolveSessionCookiePolicy();
   cookieStore.set(APP_SESSION_COOKIE, "", {
     httpOnly: true,
-    sameSite: "none",
-    secure: true,
+    sameSite: policy.sameSite,
+    secure: policy.secure,
     path: "/",
     maxAge: 0,
   });
