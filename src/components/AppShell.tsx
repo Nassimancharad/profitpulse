@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { isEmbeddedAppContext, resolveEmbeddedAppContext } from "@/lib/embeddedAppContext";
 import { PageTopBar } from "./PageTopBar";
 
 type NavItem = {
@@ -63,7 +64,15 @@ export function AppShell({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const isEmbedded = searchParams?.get("embedded") === "1" || Boolean(searchParams?.get("host"));
+  const embeddedContext = useMemo(
+    () =>
+      resolveEmbeddedAppContext({
+        searchParams,
+        cookieHeader: typeof document !== "undefined" ? document.cookie : null,
+      }),
+    [searchParams],
+  );
+  const isEmbedded = isEmbeddedAppContext(embeddedContext);
 
   const activeHref = useMemo(() => {
     const match = NAV_ITEMS.find((item) =>

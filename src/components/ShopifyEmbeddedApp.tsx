@@ -4,6 +4,10 @@ import createApp from "@shopify/app-bridge";
 import { AppLink, NavigationMenu } from "@shopify/app-bridge/actions";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useMemo } from "react";
+import {
+  applyEmbeddedAppContextToSearchParams,
+  resolveEmbeddedAppContext,
+} from "@/lib/embeddedAppContext";
 
 type ShopifyEmbeddedAppProps = {
   apiKey?: string;
@@ -48,7 +52,15 @@ export function ShopifyEmbeddedApp({ apiKey }: ShopifyEmbeddedAppProps) {
   const searchParams = useSearchParams();
 
   const activeHref = useMemo(() => resolveActiveHref(pathname), [pathname]);
-  const host = searchParams?.get("host") ?? "";
+  const embeddedContext = useMemo(
+    () =>
+      resolveEmbeddedAppContext({
+        searchParams,
+        cookieHeader: typeof document !== "undefined" ? document.cookie : null,
+      }),
+    [searchParams],
+  );
+  const host = embeddedContext.host ?? "";
 
   useEffect(() => {
     if (!apiKey || !host) return;
@@ -60,6 +72,7 @@ export function ShopifyEmbeddedApp({ apiKey }: ShopifyEmbeddedAppProps) {
     });
 
     const currentParams = new URLSearchParams(searchParams?.toString() ?? "");
+    applyEmbeddedAppContextToSearchParams(currentParams, embeddedContext);
     const links = NAV_ITEMS.map((item) =>
       AppLink.create(app, {
         label: item.label,
@@ -80,7 +93,7 @@ export function ShopifyEmbeddedApp({ apiKey }: ShopifyEmbeddedAppProps) {
       navigationMenu.unsubscribe();
       links.forEach((link) => link.unsubscribe());
     };
-  }, [activeHref, apiKey, host, searchParams]);
+  }, [activeHref, apiKey, embeddedContext, host, searchParams]);
 
   return null;
 }
