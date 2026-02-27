@@ -237,6 +237,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(fallbackUrl);
   }
 
-  const redirectUrl = `${env.appUrl}/dashboard?shop=${encodeURIComponent(shop)}`;
+  const host = url.searchParams.get("host");
+  const embedded = url.searchParams.get("embedded");
+  const dashboardParams = new URLSearchParams();
+  dashboardParams.set("shop", shop);
+  if (host) dashboardParams.set("host", host);
+  if (embedded) dashboardParams.set("embedded", embedded);
+
+  const redirectUrl = `${env.appUrl}/dashboard?${dashboardParams.toString()}`;
   return NextResponse.redirect(redirectUrl);
 }
