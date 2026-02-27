@@ -20,6 +20,7 @@ import { formatShopLabel } from '@/lib/shopLabel';
 import { requireAppPageAuth } from '@/lib/auth';
 import { buildSetupProgress } from '@/lib/setupProgress';
 import { inferSetupSignals } from '@/lib/setupProgressSignals';
+import { fetchDashboardRawData, fetchDashboardShops } from '@/data/dashboard';
 import {
   getCurrencyFormatter,
   getNumberFormatter,
@@ -27,9 +28,6 @@ import {
   getSharedCurrency,
   normalizeCurrencyCode,
 } from '@/lib/currency';
-import prisma from '@/lib/prisma';
-import { type AdSpendInput } from '@/lib/profit';
-import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from '@/lib/portfolioAdSpend';
 import { buildDailyKpiSeries } from '@/analytics';
 import { addDaysToDateKey, dayBoundsForDateKey, formatDateForTimezone, normalizeShopTimezone, parseDateKey, toTimeZoneDateKey } from '@/lib/timezone';
 import { logWarn } from '@/observability';
@@ -55,21 +53,7 @@ type DashboardProps = {
 export default async function DashboardPage({ searchParams }: DashboardProps) {
   const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const shops: ShopOverview[] = await (async () => {
-    try {
-      return await prisma.shop.findMany({
-        where: { shopDomain: { in: authorizedShops } },
-        select: { id: true, shopDomain: true, paymentFeePct: true, paymentFeeFixed: true, currency: true, timezone: true },
-        orderBy: { installedAt: 'desc' },
-      });
-    } catch {
-      return prisma.shop.findMany({
-        where: { shopDomain: { in: authorizedShops } },
-        select: { id: true, shopDomain: true },
-        orderBy: { installedAt: 'desc' },
-      });
-    }
-  })();
+  const shops: ShopOverview[] = await fetchDashboardShops(authorizedShops);
 
   if (!shops.length) {
     return (
@@ -124,7 +108,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const { end: previousEnd } = dayBoundsForDateKey(previousEndDateKey, timezone);
   const comparisonLabel = `vs ${formatDateForTimezone(previousStart, timezone)} – ${formatDateForTimezone(previousEnd, timezone)}`;
 
-  const [
+  const {
     orderLines,
     drilldownLines,
     totalOrders,
@@ -139,165 +123,24 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     variantCostCount,
     hasAnyOrderData,
     syncStates,
-  ] = await Promise.all([
-    prisma.orderLine.findMany({
-      where: {
-        order: {
-          shopId: { in: shopIds },
-          createdAt: { gte: startDate, lte: endDate },
-        },
-      },
-      include: {
-        product: {
-          select: { costPerUnit: true },
-        },
-        variant: {
-          select: { costPerUnit: true },
-        },
-      },
-    }),
-    activeShop
-      ? prisma.orderLine.findMany({
-          where: {
-            order: {
-              shopId: activeShop.id,
-              createdAt: { gte: startDate, lte: endDate },
-            },
-          },
-          select: {
-            id: true,
-            orderId: true,
-            quantity: true,
-            lineRevenue: true,
-            product: {
-              select: {
-                title: true,
-                costPerUnit: true,
-              },
-            },
-            variant: {
-              select: {
-                title: true,
-                sku: true,
-                costPerUnit: true,
-              },
-            },
-          },
-        })
-      : Promise.resolve([]),
-    prisma.order.count({
-      where: {
-        shopId: { in: shopIds },
-        createdAt: { gte: startDate, lte: endDate },
-      },
-    }),
-    activeShop && !useAllocatedAdSpend
-      ? prisma.adSpend.findMany({
-          where: {
-            shopId: activeShop.id,
-            date: { gte: adSpendStartDateUtc, lte: adSpendEndDateUtc },
-          },
-          select: { amountSpent: true, date: true },
-        })
-      : Promise.resolve<Array<{ amountSpent: number; date: Date }>>([]),
-    (async () => {
-      try {
-        return await prisma.order.findMany({
-          where: {
-            shopId: { in: shopIds },
-            createdAt: { gte: startDate, lte: endDate },
-          },
-          select: {
-            id: true,
-            shopifyOrderId: true,
-            shopId: true,
-            createdAt: true,
-            shippingRevenue: true,
-            shippingCost: true,
-            shippingCountryCode: true,
-            refundedProductAmount: true,
-            refundedShippingAmount: true,
-            paymentFeeActual: true,
-          },
-        });
-      } catch {
-        return prisma.order.findMany({
-          where: {
-            shopId: { in: shopIds },
-            createdAt: { gte: startDate, lte: endDate },
-          },
-          select: { id: true, shopId: true, createdAt: true },
-        });
-      }
-    })(),
-    (prisma as any).shippingCostRule?.findMany
-      ? (prisma as any).shippingCostRule.findMany({
-          where: { shopId: { in: shopIds } },
-          select: {
-            id: true,
-            shopId: true,
-            countryCode: true,
-            minOrderValue: true,
-            maxOrderValue: true,
-            costAmount: true,
-          },
-        })
-      : [],
-    useAllocatedAdSpend ? getAllocatedAdSpendByShop(shopIds, startDate, endDate, timezone) : Promise.resolve([]),
-    useAllocatedAdSpend ? getAllocatedAdSpendByShopByDate(shopIds, startDate, endDate, timezone) : Promise.resolve([]),
-    (prisma as any).expense?.findMany
-      ? (prisma as any).expense.findMany({
-          where: {
-            OR: [
-              { shopId: { in: shopIds } },
-              { shopId: null },
-            ],
-          },
-          select: {
-            id: true,
-            shopId: true,
-            amount: true,
-            frequency: true,
-            startDate: true,
-            endDate: true,
-          },
-        })
-      : Promise.resolve([]),
-    activeShop
-      ? prisma.metaAdAccount.count({
-          where: { shopId: activeShop.id },
-        })
-      : Promise.resolve(0),
-    activeShop
-      ? prisma.product.count({
-          where: {
-            shopId: activeShop.id,
-            costPerUnit: { not: null },
-          },
-        })
-      : Promise.resolve(0),
-    activeShop
-      ? prisma.variant.count({
-          where: {
-            shopId: activeShop.id,
-            costPerUnit: { not: null },
-          },
-        })
-      : Promise.resolve(0),
-    activeShop
-      ? prisma.order
-          .findFirst({
-            where: { shopId: activeShop.id },
-            select: { id: true },
-          })
-          .then(Boolean)
-      : Promise.resolve(false),
-    activeShop
-      ? prisma.syncState.findMany({
-          where: { shopId: activeShop.id },
-        })
-      : Promise.resolve([]),
-  ]);
+    previousOrderLines,
+    previousOrders,
+    previousAdSpends,
+    previousPortfolioAdAllocationsByDate,
+  } = await fetchDashboardRawData({
+    activeShop,
+    shopIds,
+    startDate,
+    endDate,
+    adSpendStartDateUtc,
+    adSpendEndDateUtc,
+    previousStart,
+    previousEnd,
+    previousAdSpendStartDateUtc,
+    previousAdSpendEndDateUtc,
+    timezone,
+    useAllocatedAdSpend,
+  });
 
   const adSpends = adSpendsRaw.map((item) => ({ amountSpent: item.amountSpent }));
   const hasAdSpend = useAllocatedAdSpend ? portfolioAdAllocations.length > 0 : adSpendsRaw.length > 0;
@@ -408,71 +251,6 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     feeConfigByShop,
     timezone,
   });
-
-  const [previousOrderLines, previousOrders, previousAdSpends, previousPortfolioAdAllocationsByDate] =
-    await Promise.all([
-      prisma.orderLine.findMany({
-        where: {
-          order: {
-            shopId: { in: shopIds },
-            createdAt: { gte: previousStart, lte: previousEnd },
-          },
-        },
-        select: {
-          orderId: true,
-          quantity: true,
-          lineRevenue: true,
-          product: {
-            select: { costPerUnit: true },
-          },
-          variant: {
-            select: { costPerUnit: true },
-          },
-        },
-      }),
-      (async () => {
-        try {
-          return await prisma.order.findMany({
-            where: {
-              shopId: { in: shopIds },
-              createdAt: { gte: previousStart, lte: previousEnd },
-            },
-          select: {
-            id: true,
-            shopifyOrderId: true,
-            shopId: true,
-            createdAt: true,
-            shippingRevenue: true,
-            shippingCost: true,
-              shippingCountryCode: true,
-              refundedProductAmount: true,
-              refundedShippingAmount: true,
-              paymentFeeActual: true,
-            },
-          });
-        } catch {
-          return prisma.order.findMany({
-            where: {
-              shopId: { in: shopIds },
-              createdAt: { gte: previousStart, lte: previousEnd },
-            },
-            select: { id: true, shopId: true, createdAt: true },
-          });
-        }
-      })(),
-      activeShop && !useAllocatedAdSpend
-        ? prisma.adSpend.findMany({
-            where: {
-              shopId: activeShop.id,
-              date: { gte: previousAdSpendStartDateUtc, lte: previousAdSpendEndDateUtc },
-            },
-            select: { amountSpent: true },
-          })
-        : Promise.resolve<AdSpendInput[]>([]),
-      useAllocatedAdSpend
-        ? getAllocatedAdSpendByShopByDate(shopIds, previousStart, previousEnd, timezone)
-        : Promise.resolve([]),
-    ]);
 
   const previousKpis = activeShop
     ? computeStoreKPIs(
