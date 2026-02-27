@@ -2,9 +2,19 @@ import prisma from "@/lib/prisma";
 import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from "@/lib/portfolioAdSpend";
 import type { ShopOverview } from "@/domain/profit-engine";
 
-export async function fetchDashboardShops(authorizedShops: string[]): Promise<ShopOverview[]> {
+type DashboardDbLike = {
+  shop: {
+    findMany: (args: unknown) => Promise<ShopOverview[]>;
+  };
+};
+
+export async function fetchDashboardShops(
+  authorizedShops: string[],
+  deps: { db?: DashboardDbLike } = {},
+): Promise<ShopOverview[]> {
+  const db = deps.db ?? (prisma as unknown as DashboardDbLike);
   try {
-    return await prisma.shop.findMany({
+    return await db.shop.findMany({
       where: { shopDomain: { in: authorizedShops } },
       select: {
         id: true,
@@ -17,7 +27,7 @@ export async function fetchDashboardShops(authorizedShops: string[]): Promise<Sh
       orderBy: { installedAt: "desc" },
     });
   } catch {
-    return prisma.shop.findMany({
+    return db.shop.findMany({
       where: { shopDomain: { in: authorizedShops } },
       select: { id: true, shopDomain: true },
       orderBy: { installedAt: "desc" },
