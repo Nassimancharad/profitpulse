@@ -125,6 +125,8 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     expenses,
     metaAdAccountCount,
     productCostCount,
+    variantCostCount,
+    hasAnyOrderData,
     syncStates,
   ] = await Promise.all([
     prisma.orderLine.findMany({
@@ -263,6 +265,22 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           },
         })
       : Promise.resolve(0),
+    activeShop
+      ? prisma.variant.count({
+          where: {
+            shopId: activeShop.id,
+            costPerUnit: { not: null },
+          },
+        })
+      : Promise.resolve(0),
+    activeShop
+      ? prisma.order
+          .findFirst({
+            where: { shopId: activeShop.id },
+            select: { id: true },
+          })
+          .then(Boolean)
+      : Promise.resolve(false),
     activeShop
       ? prisma.syncState.findMany({
           where: { shopId: activeShop.id },
@@ -684,11 +702,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const hasShopifySync = syncStates.some((state) => {
     return state.resource === 'SHOPIFY' && (state.status === 'OK' || Boolean(state.lastSyncedAt));
   });
-  const hasShopifyData = totalOrders > 0 || hasShopifySync;
+  const hasShopifyData = hasAnyOrderData || hasShopifySync;
   const hasCostInputs =
     (activeShop?.paymentFeePct ?? 0) > 0 ||
     (activeShop?.paymentFeeFixed ?? 0) > 0 ||
     productCostCount > 0 ||
+    variantCostCount > 0 ||
     expenses.some((expense) => expense.shopId === null || expense.shopId === activeShop?.id);
   const setupProgress = activeShop
     ? buildSetupProgress({
