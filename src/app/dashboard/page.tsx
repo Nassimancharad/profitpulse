@@ -6,6 +6,7 @@ import { SyncNowButton } from '@/components/SyncNowButton';
 import { SyncStatusPanel } from '@/components/SyncStatusPanel';
 import { formatShopLabel } from '@/lib/shopLabel';
 import { requireAppPageAuth } from '@/lib/auth';
+import { buildSetupProgress, type SetupProgress } from '@/lib/setupProgress';
 import {
   getCurrencyFormatter,
   getNumberFormatter,
@@ -19,6 +20,7 @@ import { getAllocatedAdSpendByShop, getAllocatedAdSpendByShopByDate } from '@/li
 import { buildDailyKpiSeries } from '@/analytics';
 import { addDaysToDateKey, dayBoundsForDateKey, formatDateForTimezone, normalizeShopTimezone, parseDateKey, toTimeZoneDateKey } from '@/lib/timezone';
 import { logWarn } from '@/observability';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
   computePortfolioKPIs,
@@ -121,6 +123,8 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     portfolioAdAllocations,
     portfolioAdAllocationsByDate,
     expenses,
+    metaAdAccountCount,
+    productCostCount,
     syncStates,
   ] = await Promise.all([
     prisma.orderLine.findMany({
@@ -246,6 +250,19 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           },
         })
       : Promise.resolve([]),
+    activeShop
+      ? prisma.metaAdAccount.count({
+          where: { shopId: activeShop.id },
+        })
+      : Promise.resolve(0),
+    activeShop
+      ? prisma.product.count({
+          where: {
+            shopId: activeShop.id,
+            costPerUnit: { not: null },
+          },
+        })
+      : Promise.resolve(0),
     activeShop
       ? prisma.syncState.findMany({
           where: { shopId: activeShop.id },
@@ -664,6 +681,24 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
     totalRevenue,
     totalOrders,
   });
+  const hasShopifySync = syncStates.some((state) => {
+    return state.resource === 'SHOPIFY' && (state.status === 'OK' || Boolean(state.lastSyncedAt));
+  });
+  const hasShopifyData = totalOrders > 0 || hasShopifySync;
+  const hasCostInputs =
+    (activeShop?.paymentFeePct ?? 0) > 0 ||
+    (activeShop?.paymentFeeFixed ?? 0) > 0 ||
+    productCostCount > 0 ||
+    expenses.some((expense) => expense.shopId === null || expense.shopId === activeShop?.id);
+  const setupProgress = activeShop
+    ? buildSetupProgress({
+        shopDomain: activeShop.shopDomain,
+        hasShopConnection: true,
+        hasShopifyData,
+        hasMetaConnection: metaAdAccountCount > 0,
+        hasCostInputs,
+      })
+    : null;
 
   const freshness = buildFreshness(lastDataAt);
 
@@ -713,6 +748,8 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           className="pointer-events-none absolute -left-10 top-24 h-48 w-48 rounded-full bg-[rgba(255,214,170,0.35)] blur-3xl sm:h-64 sm:w-64"
           aria-hidden
         />
+
+        {setupProgress ? <SetupGuideCard progress={setupProgress} /> : null}
 
         <KpiStrip items={kpiStripItems} partialData={!hasAdSpend} />
 
@@ -841,6 +878,61 @@ function KpiStrip({ items, partialData }: { items: KpiItem[]; partialData: boole
           <KpiCard key={item.key} item={item} />
         ))}
       </div>
+    </Card>
+  );
+}
+
+function SetupGuideCard({ progress }: { progress: SetupProgress }) {
+  return (
+    <Card className="relative w-full max-w-full p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-[color:var(--pp-foreground)]">Guided setup</div>
+          <div className="text-xs text-[color:var(--pp-muted)]">
+            {progress.completedSteps} of {progress.totalSteps} completed
+          </div>
+        </div>
+        {progress.isComplete ? (
+          <span className="pp-badge border-emerald-300/60 bg-emerald-100/60 text-emerald-700">
+            Setup complete
+          </span>
+        ) : (
+          <span className="pp-badge glass-inset text-xs">In progress</span>
+        )}
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/60">
+        <div
+          className="h-full rounded-full bg-[rgba(242,122,40,0.92)] transition-all"
+          style={{ width: `${Math.round(progress.completionRatio * 100)}%` }}
+        />
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {progress.steps.map((step, index) => (
+          <Link
+            key={step.id}
+            href={step.href}
+            className="rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 transition hover:border-[color:rgba(242,122,40,0.2)] hover:bg-white/70"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--pp-muted)]">Step {index + 1}</div>
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                  step.complete ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}
+              >
+                {step.complete ? 'Done' : 'Pending'}
+              </span>
+            </div>
+            <div className="mt-1 text-sm font-semibold text-[color:var(--pp-foreground)]">{step.title}</div>
+            <div className="mt-1 text-xs text-[color:var(--pp-muted)]">{step.description}</div>
+          </Link>
+        ))}
+      </div>
+      {progress.isComplete ? (
+        <div className="mt-4 rounded-xl border border-emerald-300/60 bg-emerald-100/50 px-4 py-3 text-sm text-emerald-700">
+          Setup complete. Your store is ready for insights with connected data and cost inputs.
+        </div>
+      ) : null}
     </Card>
   );
 }

@@ -22,6 +22,11 @@ function isMissingColumnError(error: unknown, columnName: string) {
   return normalizedColumn === columnName;
 }
 
+function isSupabaseTenantOrUserError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /tenant or user not found/i.test(message);
+}
+
 function getEnv() {
   const missing = requiredEnv.filter((key) => !process.env[key]);
   if (missing.length) {
@@ -204,11 +209,22 @@ export async function GET(request: Request) {
       }
     }
   } catch (error) {
+    const isSupabaseConfigError = isSupabaseTenantOrUserError(error);
     logError("shopify_oauth_persist_failed", {
       shopDomain: shop,
       error: error instanceof Error ? error.message : "unknown_error",
+      hint: isSupabaseConfigError
+        ? "Verify DATABASE_URL credentials for Supabase pooler (host, username project ref, password, port)."
+        : undefined,
     });
-    return NextResponse.json({ error: "Failed to persist Shopify connection" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: isSupabaseConfigError
+          ? "Database connection is misconfigured. Verify Supabase DATABASE_URL credentials."
+          : "Failed to persist Shopify connection",
+      },
+      { status: 500 },
+    );
   }
 
   try {
