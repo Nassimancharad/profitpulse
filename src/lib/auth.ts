@@ -26,11 +26,19 @@ type ApiAuthFailure = {
 
 export type ApiAuthResult = ApiAuthSuccess | ApiAuthFailure;
 
-function resolveSessionCookiePolicy() {
-  const appUrl = process.env.SHOPIFY_APP_URL ?? "";
+export type SessionCookiePolicy = {
+  sameSite: "none" | "lax";
+  secure: boolean;
+};
+
+export function resolveSessionCookiePolicyFromEnv(input: {
+  appUrl?: string | null;
+  nodeEnv?: string | null;
+}): SessionCookiePolicy {
+  const appUrl = input.appUrl ?? "";
   const isHttps = /^https:\/\//i.test(appUrl);
   const isLocalhost = /:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(appUrl);
-  const isProduction = process.env.NODE_ENV === "production";
+  const isProduction = input.nodeEnv === "production";
 
   // Embedded production/staging apps require cross-site cookie semantics.
   if (isHttps && (isProduction || !isLocalhost)) {
@@ -45,6 +53,13 @@ function resolveSessionCookiePolicy() {
     sameSite: "lax" as const,
     secure: false,
   };
+}
+
+function resolveSessionCookiePolicy() {
+  return resolveSessionCookiePolicyFromEnv({
+    appUrl: process.env.SHOPIFY_APP_URL,
+    nodeEnv: process.env.NODE_ENV,
+  });
 }
 
 function getApiSecret() {

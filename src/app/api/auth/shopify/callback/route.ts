@@ -22,9 +22,15 @@ function isMissingColumnError(error: unknown, columnName: string) {
   return normalizedColumn === columnName;
 }
 
-function isSupabaseTenantOrUserError(error: unknown) {
+export function isSupabaseTenantOrUserError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return /tenant or user not found/i.test(message);
+}
+
+export function mapShopifyPersistErrorMessage(error: unknown) {
+  return isSupabaseTenantOrUserError(error)
+    ? "Database connection is misconfigured. Verify Supabase DATABASE_URL credentials."
+    : "Failed to persist Shopify connection";
 }
 
 function getEnv() {
@@ -217,14 +223,7 @@ export async function GET(request: Request) {
         ? "Verify DATABASE_URL credentials for Supabase pooler (host, username project ref, password, port)."
         : undefined,
     });
-    return NextResponse.json(
-      {
-        error: isSupabaseConfigError
-          ? "Database connection is misconfigured. Verify Supabase DATABASE_URL credentials."
-          : "Failed to persist Shopify connection",
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: mapShopifyPersistErrorMessage(error) }, { status: 500 });
   }
 
   try {
