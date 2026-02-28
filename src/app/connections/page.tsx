@@ -4,7 +4,7 @@ import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { SyncNowButton } from "@/components/SyncNowButton";
 import { ShopRole } from "@prisma/client";
-import { requireAppPageAuth } from "@/lib/auth";
+import { getAuthorizedSessionFromCookie } from "@/lib/auth";
 import { formatShopLabel } from "@/lib/shopLabel";
 import prisma from "@/lib/prisma";
 
@@ -51,7 +51,11 @@ function bannerClasses(tone: StatusTone) {
 
 export default async function ConnectionsPage({ searchParams }: ConnectionsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const { authorizedShops, shopRoles } = await requireAppPageAuth();
+  const session = await getAuthorizedSessionFromCookie();
+  const authorizedShops = session.shops;
+  const shopRoles = new Map(
+    authorizedShops.map((shop) => [shop, session.rolesByShop[shop] ?? ShopRole.VIEWER] as const),
+  );
 
   if (!authorizedShops.length) {
     return (

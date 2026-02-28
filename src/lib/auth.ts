@@ -143,7 +143,7 @@ function sanitizeRoleMap(input: unknown, allowedShops: Set<string>) {
 function rolesRecordToMap(shops: string[], rolesByShop: Record<string, ShopRole>) {
   const map = new Map<string, ShopRole>();
   for (const shop of shops) {
-    map.set(shop, rolesByShop[shop] ?? ShopRole.ADMIN);
+    map.set(shop, rolesByShop[shop] ?? ShopRole.VIEWER);
   }
   return map;
 }
@@ -207,14 +207,31 @@ function verifySignedSessionValue(value: string | null | undefined, secret: stri
 }
 
 export async function getAuthorizedShopsFromCookie(): Promise<string[]> {
+  const session = await getAuthorizedSessionFromCookie();
+  return session.shops;
+}
+
+export async function getAuthorizedSessionFromCookie(): Promise<{
+  shops: string[];
+  rolesByShop: Record<string, ShopRole>;
+  subjectExternalId: string | null;
+}> {
   try {
     const secret = getApiSecret();
     const cookieStore = await cookies();
     const value = cookieStore.get(APP_SESSION_COOKIE)?.value;
     const payload = verifySignedSessionValue(value, secret);
-    return payload?.shops ?? [];
+    return {
+      shops: payload?.shops ?? [],
+      rolesByShop: payload?.roles ?? {},
+      subjectExternalId: payload?.sub ?? null,
+    };
   } catch {
-    return [];
+    return {
+      shops: [],
+      rolesByShop: {},
+      subjectExternalId: null,
+    };
   }
 }
 
@@ -257,16 +274,24 @@ export async function extendAuthorizedShopsCookie(shopDomain: string) {
   const normalized = normalizeShopDomain(shopDomain);
   if (!normalized) return;
 
-  const existing = await getAuthorizedShopsFromCookie();
-  await setAuthorizedSessionCookie({ shops: [...existing, normalized] });
+  const existing = await getAuthorizedSessionFromCookie();
+  await setAuthorizedSessionCookie({
+    shops: [...existing.shops, normalized],
+    rolesByShop: existing.rolesByShop,
+    subjectExternalId: existing.subjectExternalId,
+  });
 }
 
 export async function removeAuthorizedShopFromCookie(shopDomain: string) {
   const normalized = normalizeShopDomain(shopDomain);
   if (!normalized) return;
 
-  const existing = await getAuthorizedShopsFromCookie();
-  await setAuthorizedSessionCookie({ shops: existing.filter((shop) => shop !== normalized) });
+  const existing = await getAuthorizedSessionFromCookie();
+  await setAuthorizedSessionCookie({
+    shops: existing.shops.filter((shop) => shop !== normalized),
+    rolesByShop: existing.rolesByShop,
+    subjectExternalId: existing.subjectExternalId,
+  });
 }
 
 export async function clearAuthorizedShopsCookie() {
@@ -282,22 +307,17 @@ export async function clearAuthorizedShopsCookie() {
 }
 
 export async function requireAppPageAuth() {
-  const authorizedShops = await getAuthorizedShopsFromCookie();
+  const session = await getAuthorizedSessionFromCookie();
+  const authorizedShops = session.shops;
   if (!authorizedShops.length) {
     redirect("/connections?auth=required");
   }
 
-  const secret = getApiSecret();
-  const cookieStore = await cookies();
-  const value = cookieStore.get(APP_SESSION_COOKIE)?.value;
-  const payload = verifySignedSessionValue(value, secret);
-  const rolesByShop = payload?.roles ?? {};
-
   return {
     authorizedShops,
     authorizedShopSet: new Set(authorizedShops),
-    shopRoles: rolesRecordToMap(authorizedShops, rolesByShop),
-    actorExternalId: payload?.sub ?? null,
+    shopRoles: rolesRecordToMap(authorizedShops, session.rolesByShop),
+    actorExternalId: session.subjectExternalId,
   };
 }
 
@@ -329,7 +349,7 @@ export function getShopRoleForDomain(
   if (!normalized || !auth.authorizedShops.has(normalized)) {
     return null;
   }
-  return auth.shopRoles.get(normalized) ?? ShopRole.ADMIN;
+  return auth.shopRoles.get(normalized) ?? ShopRole.VIEWER;
 }
 
 export function hasRequiredRole(role: ShopRole | null, requiredRole: ShopRole) {
@@ -476,7 +496,7 @@ async function resolveUserSessionDataForToken(shopDomain: string, payload: Recor
     return {
       subjectExternalId,
       shops: [shopDomain],
-      rolesByShop: { [shopDomain]: ShopRole.ADMIN },
+      rolesByShop: { [shopDomain]: ShopRole.VIEWER },
     };
   }
 }
