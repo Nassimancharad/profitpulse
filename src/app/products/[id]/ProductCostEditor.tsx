@@ -6,6 +6,7 @@ type Props = {
   productId: string;
   initialCost: number | null;
   shopDomain: string;
+  canManage: boolean;
   variants: Array<{
     id: string;
     title: string;
@@ -20,7 +21,7 @@ function normalizeInitialValue(value: number | null) {
   return value != null ? value.toString() : "";
 }
 
-export function ProductCostEditor({ productId, initialCost, shopDomain, variants }: Props) {
+export function ProductCostEditor({ productId, initialCost, shopDomain, canManage, variants }: Props) {
   const [value, setValue] = useState<string>(normalizeInitialValue(initialCost));
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [variantValues, setVariantValues] = useState<Record<string, string>>(() =>
@@ -96,19 +97,20 @@ export function ProductCostEditor({ productId, initialCost, shopDomain, variants
             inputMode="decimal"
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            disabled={!canManage}
             className="pp-input w-full max-w-xs"
             placeholder="0.00"
           />
           <button
             type="button"
             onClick={handleSave}
-            disabled={status === "saving"}
+            disabled={status === "saving" || !canManage}
             className="pp-btn pp-btn-primary px-4 py-2 text-sm"
           >
             {status === "saving" && "Saving..."}
             {status === "saved" && "Saved"}
             {status === "error" && "Retry"}
-            {status === "idle" && "Save default"}
+            {status === "idle" && (canManage ? "Save default" : "View only")}
           </button>
         </div>
         {status === "error" ? (
@@ -140,24 +142,30 @@ export function ProductCostEditor({ productId, initialCost, shopDomain, variants
                     inputMode="decimal"
                     value={variantValues[variant.id] ?? ""}
                     onChange={(e) => setVariantValues((prev) => ({ ...prev, [variant.id]: e.target.value }))}
+                    disabled={!canManage}
                     className="pp-input w-full sm:w-36"
                     placeholder="Use default"
                   />
                   <button
                     type="button"
                     onClick={() => handleVariantSave(variant.id)}
-                    disabled={currentStatus === "saving"}
+                    disabled={currentStatus === "saving" || !canManage}
                     className="pp-btn pp-btn-secondary glass-inset px-3 py-2 text-xs"
                   >
                     {currentStatus === "saving" && "Saving..."}
                     {currentStatus === "saved" && "Saved"}
                     {currentStatus === "error" && "Retry"}
-                    {currentStatus === "idle" && "Save"}
+                    {currentStatus === "idle" && (canManage ? "Save" : "View only")}
                   </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      ) : null}
+      {!canManage ? (
+        <div className="glass-inset rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
+          Your role is viewer. Cost edits require admin access.
         </div>
       ) : null}
     </div>

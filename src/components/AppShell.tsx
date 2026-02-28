@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { PageTopBar } from "./PageTopBar";
+import { SessionBootstrap } from "./SessionBootstrap";
 
 type NavItem = {
   href: string;
@@ -72,6 +73,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen w-full bg-[var(--pp-bg)] text-[color:var(--pp-foreground)]">
+      <SessionBootstrap />
       <div className="flex min-h-screen w-full">
         <aside className="hidden w-64 flex-shrink-0 flex-col bg-[var(--pp-surface-glass-subtle)] px-4 py-6 backdrop-blur lg:flex">
           <div className="rounded-3xl border border-[color:var(--pp-border)] bg-white/70 px-4 py-4 shadow-[0_12px_30px_-18px_rgba(17,18,22,0.35)]">

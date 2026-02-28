@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/AppShell';
+import { ShopRole } from "@prisma/client";
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { DashboardProfitDrilldown } from '@/components/DashboardProfitDrilldown';
@@ -51,7 +52,7 @@ type DashboardProps = {
 };
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
-  const { authorizedShops } = await requireAppPageAuth();
+  const { authorizedShops, shopRoles } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops: ShopOverview[] = await fetchDashboardShops(authorizedShops);
 
@@ -530,7 +531,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
   const secondaryControls = (
     <div className="flex w-full flex-wrap items-center gap-2">
       {shopSelector}
-      {activeShop ? <SyncNowButton shopDomain={activeShop.shopDomain} /> : null}
+      {activeShop ? (
+        <SyncNowButton
+          shopDomain={activeShop.shopDomain}
+          canManage={shopRoles.get(activeShop.shopDomain) === ShopRole.ADMIN}
+        />
+      ) : null}
       <span className="pp-badge glass-inset w-full px-3.5 py-1.5 sm:w-auto">
         Comparison: previous period
       </span>

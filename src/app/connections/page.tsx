@@ -3,7 +3,8 @@ import { MetaSyncButton } from "@/components/MetaSyncButton";
 import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { SyncNowButton } from "@/components/SyncNowButton";
-import { getAuthorizedShopsFromCookie } from "@/lib/auth";
+import { ShopRole } from "@prisma/client";
+import { requireAppPageAuth } from "@/lib/auth";
 import { formatShopLabel } from "@/lib/shopLabel";
 import prisma from "@/lib/prisma";
 
@@ -50,7 +51,7 @@ function bannerClasses(tone: StatusTone) {
 
 export default async function ConnectionsPage({ searchParams }: ConnectionsPageProps) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const authorizedShops = await getAuthorizedShopsFromCookie();
+  const { authorizedShops, shopRoles } = await requireAppPageAuth();
 
   if (!authorizedShops.length) {
     return (
@@ -168,6 +169,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
       })
     : "—";
   const banner = mapStatus(resolvedSearchParams?.shopify, resolvedSearchParams?.meta);
+  const canManage = shopRoles.get(shop.shopDomain) === ShopRole.ADMIN;
   const shopSelector = (
     <ShopSwitcher
       shops={shops}
@@ -198,13 +200,14 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
               <p className="text-sm text-[color:var(--pp-muted)]">Installed {installedAt}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <SyncNowButton shopDomain={shop.shopDomain} />
+              <SyncNowButton shopDomain={shop.shopDomain} canManage={canManage} />
               <form action={`/api/auth/shopify/disconnect?shop=${encodeURIComponent(shop.shopDomain)}`} method="POST">
                 <button
                   type="submit"
+                  disabled={!canManage}
                   className="pp-btn px-3.5 py-2 text-sm text-rose-600 border-rose-300/60 bg-rose-200/40 hover:border-rose-300"
                 >
-                  Disconnect
+                  {canManage ? "Disconnect" : "View only"}
                 </button>
               </form>
             </div>
@@ -223,17 +226,18 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
             <div className="flex flex-wrap items-center gap-3">
               <a
                 href={`/api/auth/meta/install?shop=${encodeURIComponent(shop.shopDomain)}`}
-                className="pp-btn pp-btn-primary px-3.5 py-2 text-sm"
+                className={`pp-btn pp-btn-primary px-3.5 py-2 text-sm ${!canManage ? "pointer-events-none opacity-60" : ""}`}
               >
-                Connect Meta
+                {canManage ? "Connect Meta" : "View only"}
               </a>
-              <MetaSyncButton shopDomain={shop.shopDomain} />
+              <MetaSyncButton shopDomain={shop.shopDomain} canManage={canManage} />
               <form action={`/api/meta/disconnect?shop=${encodeURIComponent(shop.shopDomain)}`} method="POST">
                 <button
                   type="submit"
+                  disabled={!canManage}
                   className="pp-btn pp-btn-secondary glass-inset px-3.5 py-2 text-sm"
                 >
-                  Disconnect Meta
+                  {canManage ? "Disconnect Meta" : "View only"}
                 </button>
               </form>
             </div>
@@ -257,6 +261,11 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
             )}
           </div>
         </section>
+        {!canManage ? (
+          <div className="glass-inset rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
+            Your role is viewer. Connection and sync actions require admin access.
+          </div>
+        ) : null}
 
       </div>
     </AppShell>

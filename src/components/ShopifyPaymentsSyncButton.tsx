@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 
 type Props = {
   shopDomain: string;
+  canManage?: boolean;
 };
 
-export function ShopifyPaymentsSyncButton({ shopDomain }: Props) {
+export function ShopifyPaymentsSyncButton({ shopDomain, canManage = true }: Props) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
@@ -19,7 +20,7 @@ export function ShopifyPaymentsSyncButton({ shopDomain }: Props) {
   }, [status]);
 
   const handleClick = async () => {
-    if (status === "loading") return;
+    if (status === "loading" || !canManage) return;
     setStatus("loading");
     try {
       const res = await fetch(`/api/shopify-payments/sync?shop=${encodeURIComponent(shopDomain)}`, {
@@ -44,13 +45,13 @@ export function ShopifyPaymentsSyncButton({ shopDomain }: Props) {
     <button
       type="button"
       onClick={handleClick}
-      disabled={status === "loading"}
+      disabled={status === "loading" || !canManage}
       className="pp-btn pp-btn-secondary glass-inset px-3.5 py-2 text-sm"
     >
       {status === "loading" && "Syncing fees"}
       {status === "success" && "Fees synced"}
       {status === "error" && "Retry fees"}
-      {status === "idle" && "Sync fees"}
+      {status === "idle" && (canManage ? "Sync fees" : "View only")}
     </button>
   );
 }

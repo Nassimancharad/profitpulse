@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 type Props = {
   shopDomain: string;
   size?: "md" | "lg";
+  canManage?: boolean;
 };
 
-export function SyncNowButton({ shopDomain, size = "md" }: Props) {
+export function SyncNowButton({ shopDomain, size = "md", canManage = true }: Props) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
@@ -50,7 +51,7 @@ export function SyncNowButton({ shopDomain, size = "md" }: Props) {
     <button
       type="button"
       onClick={handleClick}
-      disabled={status === "loading"}
+      disabled={status === "loading" || !canManage}
       className={`pp-btn pp-btn-secondary glass-inset w-full sm:w-auto ${padding} text-sm`}
     >
       <span aria-hidden>
@@ -71,7 +72,7 @@ export function SyncNowButton({ shopDomain, size = "md" }: Props) {
       {status === "loading" && "Syncing"}
       {status === "success" && "Synced"}
       {status === "error" && "Retry sync"}
-      {status === "idle" && "Sync"}
+      {status === "idle" && (canManage ? "Sync" : "View only")}
     </button>
   );
 }

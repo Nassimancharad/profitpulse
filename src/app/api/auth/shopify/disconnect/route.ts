@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
   authenticateApiRequest,
-  isAuthorizedForShop,
+  isAuthorizedForShopRole,
   removeAuthorizedShopFromCookie,
 } from "@/lib/auth";
 
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
   if (!auth.ok) {
     return auth.response;
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
+  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
     return NextResponse.redirect(`${appBase}/connections?shopify=forbidden`);
   }
 

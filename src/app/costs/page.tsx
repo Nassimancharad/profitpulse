@@ -1,4 +1,5 @@
 import { AppShell } from '@/components/AppShell';
+import { ShopRole } from "@prisma/client";
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
@@ -25,7 +26,7 @@ type ExpenseRecord = {
 };
 
 export default async function CostsPage({ searchParams }: CostsPageProps) {
-  const { authorizedShops } = await requireAppPageAuth();
+  const { authorizedShops, shopRoles } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops: ShopRef[] = await prisma.shop.findMany({
     where: { shopDomain: { in: authorizedShops } },
@@ -110,8 +111,10 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
   const overflowActions = (
     <OverflowMenu
       shopDomain={shop.shopDomain}
+      canManage={shopRoles.get(shop.shopDomain) === ShopRole.ADMIN}
     />
   );
+  const canManage = shopRoles.get(shop.shopDomain) === ShopRole.ADMIN;
   const shopSelector = (
     <ShopSwitcher
       shops={shops}
@@ -138,7 +141,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
               <p className="text-sm text-[color:var(--pp-muted)]">Manage cost settings</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <SyncNowButton shopDomain={shop.shopDomain} />
+              <SyncNowButton shopDomain={shop.shopDomain} canManage={canManage} />
             </div>
           </div>
         </section>
@@ -163,6 +166,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 step="0.01"
                 min="0"
                 defaultValue={shop.paymentFeePct ?? 0}
+                disabled={!canManage}
                 className="pp-input mt-1"
               />
             </label>
@@ -174,24 +178,27 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 step="0.01"
                 min="0"
                 defaultValue={shop.paymentFeeFixed ?? 0}
+                disabled={!canManage}
                 className="pp-input mt-1"
               />
             </label>
             <div className="flex items-end">
               <button
                 type="submit"
+                disabled={!canManage}
                 className="pp-btn pp-btn-primary w-full px-4 py-2 text-sm"
               >
-                Save fees
+                {canManage ? "Save fees" : "View only"}
               </button>
             </div>
           </form>
           <form className="mt-4" action={`/api/shopify-payments/sync?shop=${encodeURIComponent(shop.shopDomain)}`} method="POST">
             <button
               type="submit"
+              disabled={!canManage}
               className="pp-btn pp-btn-secondary glass-inset px-4 py-2 text-xs"
             >
-              Sync Shopify Payments fees
+              {canManage ? "Sync Shopify Payments fees" : "View only"}
             </button>
           </form>
           {paymentsStatus ? (
@@ -223,6 +230,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 name="name"
                 placeholder="e.g. Subscription tools"
                 className="pp-input mt-1"
+                disabled={!canManage}
                 required
               />
             </label>
@@ -234,6 +242,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 step="0.01"
                 min="0"
                 className="pp-input mt-1"
+                disabled={!canManage}
                 required
               />
             </label>
@@ -243,6 +252,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 type="date"
                 name="startDate"
                 className="pp-input mt-1"
+                disabled={!canManage}
                 required
               />
             </label>
@@ -252,6 +262,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 type="date"
                 name="endDate"
                 className="pp-input mt-1"
+                disabled={!canManage}
               />
             </label>
             <label className="text-xs text-[color:var(--pp-muted)]">
@@ -260,6 +271,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 name="scope"
                 className="pp-select mt-1"
                 defaultValue="store"
+                disabled={!canManage}
               >
                 <option value="store">This store</option>
                 <option value="portfolio">All stores</option>
@@ -268,9 +280,10 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
             <div className="flex items-end lg:col-span-5">
               <button
                 type="submit"
+                disabled={!canManage}
                 className="pp-btn pp-btn-primary w-full px-4 py-2 text-sm"
               >
-                Add expense
+                {canManage ? "Add expense" : "View only"}
               </button>
             </div>
           </form>
@@ -298,15 +311,21 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                   >
                     <button
                       type="submit"
+                      disabled={!canManage}
                       className="pp-btn pp-btn-secondary glass-inset px-3 py-2 text-xs"
                     >
-                      Remove
+                      {canManage ? "Remove" : "View only"}
                     </button>
                   </form>
                 </div>
               ))
             )}
           </div>
+          {!canManage ? (
+            <div className="glass-inset mt-4 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
+              Your role is viewer. Cost and expense updates require admin access.
+            </div>
+          ) : null}
         </section>
       </div>
     </AppShell>

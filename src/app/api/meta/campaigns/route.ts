@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { fetchMetaCampaigns } from "@/lib/meta";
-import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
+import { authenticateApiRequest, isAuthorizedForShop, isAuthorizedForShopRole } from "@/lib/auth";
 
 type CampaignRow = {
   id: string;
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop (?shop=...)" }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
+  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

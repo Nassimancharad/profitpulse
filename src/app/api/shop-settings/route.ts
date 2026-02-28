@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { ShopRole } from "@prisma/client";
 import prisma from '@/lib/prisma';
-import { authenticateApiRequest, isAuthorizedForShop } from '@/lib/auth';
+import { authenticateApiRequest, isAuthorizedForShopRole } from '@/lib/auth';
 
 type Payload = {
   shop?: string;
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: 'Missing shop domain' }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
+  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

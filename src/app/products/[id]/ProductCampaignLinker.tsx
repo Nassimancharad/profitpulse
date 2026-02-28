@@ -10,9 +10,10 @@ type Props = {
   linkedCampaigns: string[];
   campaigns: CampaignOption[];
   shopDomain?: string;
+  canManage: boolean;
 };
 
-export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, shopDomain }: Props) {
+export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, shopDomain, canManage }: Props) {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>(linkedCampaigns);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -21,6 +22,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
   const [saving, setSaving] = useState(false);
 
   const toggle = async (campaignId: string) => {
+    if (!canManage) return;
     const isLinked = selected.includes(campaignId);
     setBusyId(campaignId);
     try {
@@ -42,7 +44,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
   };
 
   const refreshCampaigns = async () => {
-    if (!shopDomain) return;
+    if (!shopDomain || !canManage) return;
     setSyncStatus("loading");
     try {
       const res = await fetch(`/api/meta/campaigns?shop=${encodeURIComponent(shopDomain)}`, {
@@ -60,7 +62,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
   };
 
   const handleSave = () => {
-    if (!showList) return;
+    if (!showList || !canManage) return;
     setSaving(true);
     setTimeout(() => {
       setSaving(false);
@@ -80,6 +82,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
             <button
               type="button"
               onClick={refreshCampaigns}
+              disabled={!canManage}
               className="pp-btn pp-btn-secondary glass-inset px-3 py-2 text-xs"
             >
               {syncStatus === "loading"
@@ -99,7 +102,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !canManage}
               className="pp-btn pp-btn-primary px-3 py-2 text-xs"
             >
               {saving ? "Saving…" : "Save"}
@@ -127,7 +130,7 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
                       type="checkbox"
                       checked={isLinked}
                       onChange={() => toggle(campaign.id)}
-                      disabled={isBusy}
+                      disabled={isBusy || !canManage}
                       className="h-4 w-4 rounded border-[color:var(--pp-border)] bg-white text-[color:var(--pp-accent)] focus:ring-2 focus:ring-[rgba(242,122,40,0.35)]"
                     />
                     <span>{campaign.label}</span>
@@ -144,6 +147,11 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
         </div>
       )}
       <LinkedSummary campaigns={campaigns} selected={selected} />
+      {!canManage ? (
+        <div className="glass-inset mt-3 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-3 py-2 text-xs text-[color:var(--pp-muted)]">
+          Your role is viewer. Campaign linking requires admin access.
+        </div>
+      ) : null}
     </div>
   );
 }

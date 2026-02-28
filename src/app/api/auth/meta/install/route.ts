@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
+import { ShopRole } from "@prisma/client";
 import { buildMetaAuthUrl } from "@/lib/meta";
-import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
+import { authenticateApiRequest, isAuthorizedForShopRole } from "@/lib/auth";
 
 export async function GET(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   if (!shop) {
     return NextResponse.json({ error: "Missing shop query parameter" }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shop)) {
+  if (!isAuthorizedForShopRole(auth, shop, ShopRole.ADMIN)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

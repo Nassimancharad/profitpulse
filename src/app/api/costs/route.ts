@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
+import { authenticateApiRequest, isAuthorizedForShopRole } from "@/lib/auth";
 import { logError } from "@/observability";
 
 export async function POST(request: Request) {
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
         { status: 404 },
       );
     }
-    if (!isAuthorizedForShop(auth, target.shop.shopDomain)) {
+    if (!isAuthorizedForShopRole(auth, target.shop.shopDomain, ShopRole.ADMIN)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
