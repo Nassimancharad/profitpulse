@@ -45,6 +45,12 @@ type SessionData = {
   rolesByShop: Record<string, ShopRole>;
 };
 
+type ResolvedCookieSession = {
+  authorizedShops: string[];
+  rolesByShop: Record<string, ShopRole>;
+  actorExternalId: string | null;
+};
+
 export type SessionCookiePolicy = {
   sameSite: "none" | "lax";
   secure: boolean;
@@ -383,6 +389,43 @@ function deriveDisplayName(payload: Record<string, unknown>) {
   return combined || null;
 }
 
+export function resolveCookieAuthorizationFromMemberships(input: {
+  cookieShops: string[];
+  cookieSub: string | null;
+  dbSession: SessionData | null;
+}): ResolvedCookieSession {
+  const cookieShops = sanitizeShops(input.cookieShops);
+
+  if (input.dbSession) {
+    const rolesByShop = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
+      const role = input.dbSession?.rolesByShop[shop];
+      if (role) {
+        acc[shop] = role;
+      }
+      return acc;
+    }, {});
+    const authorizedShops = Object.keys(rolesByShop);
+
+    return {
+      authorizedShops,
+      rolesByShop,
+      actorExternalId: input.dbSession.subjectExternalId,
+    };
+  }
+
+  // Fail closed: when DB revalidation is unavailable, keep read access only.
+  const downgradedRoles = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
+    acc[shop] = ShopRole.VIEWER;
+    return acc;
+  }, {});
+
+  return {
+    authorizedShops: cookieShops,
+    rolesByShop: downgradedRoles,
+    actorExternalId: input.cookieSub,
+  };
+}
+
 async function resolveUserSessionDataForSubjectExternalId(subjectExternalId: string): Promise<SessionData | null> {
   try {
     const user = await prisma.appUser.findUnique({
@@ -587,38 +630,19 @@ export async function authenticateApiRequest(request: Request): Promise<ApiAuthR
     const payload = verifySignedSessionValue(cookieValue, secret);
 
     if (payload?.shops.length) {
-      const cookieShops = sanitizeShops(payload.shops);
-      if (payload.sub) {
-        const dbSession = await resolveUserSessionDataForSubjectExternalId(payload.sub);
-        if (dbSession) {
-          const rolesByShop = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
-            const role = dbSession.rolesByShop[shop];
-            if (role) {
-              acc[shop] = role;
-            }
-            return acc;
-          }, {});
-          const authorizedShops = Object.keys(rolesByShop);
-          return {
-            ok: true,
-            authorizedShops: new Set(authorizedShops),
-            shopRoles: rolesRecordToMap(authorizedShops, rolesByShop),
-            actorExternalId: dbSession.subjectExternalId,
-            source: "cookie",
-          };
-        }
-      }
-
-      // Fail closed: when DB revalidation is unavailable, keep read access only.
-      const downgradedRoles = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
-        acc[shop] = ShopRole.VIEWER;
-        return acc;
-      }, {});
+      const dbSession = payload.sub
+        ? await resolveUserSessionDataForSubjectExternalId(payload.sub)
+        : null;
+      const resolved = resolveCookieAuthorizationFromMemberships({
+        cookieShops: payload.shops,
+        cookieSub: payload.sub ?? null,
+        dbSession,
+      });
       return {
         ok: true,
-        authorizedShops: new Set(cookieShops),
-        shopRoles: rolesRecordToMap(cookieShops, downgradedRoles),
-        actorExternalId: payload.sub ?? null,
+        authorizedShops: new Set(resolved.authorizedShops),
+        shopRoles: rolesRecordToMap(resolved.authorizedShops, resolved.rolesByShop),
+        actorExternalId: resolved.actorExternalId,
         source: "cookie",
       };
     }
