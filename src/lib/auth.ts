@@ -383,6 +383,53 @@ function deriveDisplayName(payload: Record<string, unknown>) {
   return combined || null;
 }
 
+async function resolveUserSessionDataForSubjectExternalId(subjectExternalId: string): Promise<SessionData | null> {
+  try {
+    const user = await prisma.appUser.findUnique({
+      where: {
+        provider_externalId: {
+          provider: "shopify",
+          externalId: subjectExternalId,
+        },
+      },
+      select: {
+        externalId: true,
+        memberships: {
+          select: {
+            role: true,
+            shop: { select: { shopDomain: true } },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    const rolesByShop = user.memberships.reduce<Record<string, ShopRole>>((acc, membership) => {
+      const normalizedShop = normalizeShopDomain(membership.shop.shopDomain);
+      if (normalizedShop) {
+        acc[normalizedShop] = membership.role;
+      }
+      return acc;
+    }, {});
+
+    const shops = Object.keys(rolesByShop);
+    return {
+      subjectExternalId: user.externalId,
+      shops,
+      rolesByShop,
+    };
+  } catch (error) {
+    logWarn("rbac_cookie_membership_revalidation_failed", {
+      subjectExternalId,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    return null;
+  }
+}
+
 async function resolveUserSessionDataForToken(shopDomain: string, payload: Record<string, unknown>): Promise<SessionData> {
   const subjectExternalId = typeof payload.sub === "string" ? payload.sub : "";
   if (!subjectExternalId) {
@@ -540,11 +587,37 @@ export async function authenticateApiRequest(request: Request): Promise<ApiAuthR
     const payload = verifySignedSessionValue(cookieValue, secret);
 
     if (payload?.shops.length) {
-      const shopRoles = rolesRecordToMap(payload.shops, payload.roles ?? {});
+      const cookieShops = sanitizeShops(payload.shops);
+      if (payload.sub) {
+        const dbSession = await resolveUserSessionDataForSubjectExternalId(payload.sub);
+        if (dbSession) {
+          const rolesByShop = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
+            const role = dbSession.rolesByShop[shop];
+            if (role) {
+              acc[shop] = role;
+            }
+            return acc;
+          }, {});
+          const authorizedShops = Object.keys(rolesByShop);
+          return {
+            ok: true,
+            authorizedShops: new Set(authorizedShops),
+            shopRoles: rolesRecordToMap(authorizedShops, rolesByShop),
+            actorExternalId: dbSession.subjectExternalId,
+            source: "cookie",
+          };
+        }
+      }
+
+      // Fail closed: when DB revalidation is unavailable, keep read access only.
+      const downgradedRoles = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
+        acc[shop] = ShopRole.VIEWER;
+        return acc;
+      }, {});
       return {
         ok: true,
-        authorizedShops: new Set(payload.shops),
-        shopRoles,
+        authorizedShops: new Set(cookieShops),
+        shopRoles: rolesRecordToMap(cookieShops, downgradedRoles),
         actorExternalId: payload.sub ?? null,
         source: "cookie",
       };

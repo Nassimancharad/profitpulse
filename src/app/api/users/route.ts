@@ -148,10 +148,14 @@ export async function POST(request: Request) {
       }
 
       if (current.role === ShopRole.ADMIN && role === ShopRole.VIEWER) {
-        const adminCount = await tx.shopMembership.count({
-          where: { shopId: shop.id, role: ShopRole.ADMIN },
-        });
-        if (adminCount <= 1) {
+        const lockedAdmins = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id"
+          FROM "ShopMembership"
+          WHERE "shopId" = ${shop.id}
+            AND "role" = 'ADMIN'
+          FOR UPDATE
+        `;
+        if (lockedAdmins.length <= 1) {
           throw new Error("last_admin");
         }
       }
