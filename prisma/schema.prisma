@@ -34,6 +34,41 @@ model Shop {
   shippingCostRules ShippingCostRule[]
   expenses    Expense[]
   syncStates  SyncState[]
+  memberships ShopMembership[]
+}
+
+enum ShopRole {
+  ADMIN
+  VIEWER
+}
+
+model AppUser {
+  id          String           @id @default(cuid())
+  provider    String           @default("shopify")
+  externalId  String
+  email       String?
+  displayName String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  memberships ShopMembership[]
+
+  @@unique([provider, externalId])
+}
+
+model ShopMembership {
+  id        String   @id @default(cuid())
+  user      AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId    String
+  role      ShopRole @default(VIEWER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, shopId])
+  @@index([shopId, role])
+  @@index([userId])
 }
 
 model Product {

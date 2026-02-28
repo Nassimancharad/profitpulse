@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 
 type Props = {
   shopDomain: string;
+  canManage?: boolean;
 };
 
-export function MetaSyncButton({ shopDomain }: Props) {
+export function MetaSyncButton({ shopDomain, canManage = true }: Props) {
   const router = useRouter();
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
 
@@ -19,7 +20,7 @@ export function MetaSyncButton({ shopDomain }: Props) {
   }, [status]);
 
   const handleClick = async () => {
-    if (status === "loading") return;
+    if (status === "loading" || !canManage) return;
     setStatus("loading");
     try {
       const res = await fetch(`/api/meta/sync?shop=${encodeURIComponent(shopDomain)}`, {
@@ -40,13 +41,13 @@ export function MetaSyncButton({ shopDomain }: Props) {
     <button
       type="button"
       onClick={handleClick}
-      disabled={status === "loading"}
+      disabled={status === "loading" || !canManage}
       className="pp-btn pp-btn-secondary glass-inset px-3.5 py-2 text-sm"
     >
       {status === "loading" && "Syncing Meta"}
       {status === "success" && "Meta synced"}
       {status === "error" && "Retry Meta sync"}
-      {status === "idle" && "Sync Meta"}
+      {status === "idle" && (canManage ? "Sync Meta" : "View only")}
     </button>
   );
 }

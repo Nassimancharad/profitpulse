@@ -1,14 +1,19 @@
 import crypto from "node:crypto";
+import { ShopRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
 import { authenticateShopifyRequest } from "@/lib/shopifySession";
+import { logWarn } from "@/observability";
 
 const APP_SESSION_COOKIE = "pp_session";
 const APP_SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
 
 type AppSessionPayload = {
   shops: string[];
+  roles?: Record<string, ShopRole>;
+  sub?: string;
   iat: number;
   exp: number;
 };
@@ -16,6 +21,8 @@ type AppSessionPayload = {
 type ApiAuthSuccess = {
   ok: true;
   authorizedShops: Set<string>;
+  shopRoles: Map<string, ShopRole>;
+  actorExternalId: string | null;
   source: "token" | "cookie";
 };
 
@@ -25,6 +32,18 @@ type ApiAuthFailure = {
 };
 
 export type ApiAuthResult = ApiAuthSuccess | ApiAuthFailure;
+
+type AuthorizedSessionData = {
+  shops: string[];
+  rolesByShop?: Record<string, ShopRole>;
+  subjectExternalId?: string | null;
+};
+
+type SessionData = {
+  subjectExternalId: string;
+  shops: string[];
+  rolesByShop: Record<string, ShopRole>;
+};
 
 export type SessionCookiePolicy = {
   sameSite: "none" | "lax";
@@ -103,6 +122,32 @@ function sanitizeShops(shops: string[]) {
   );
 }
 
+function sanitizeRoleMap(input: unknown, allowedShops: Set<string>) {
+  if (!input || typeof input !== "object") {
+    return {} as Record<string, ShopRole>;
+  }
+
+  const next: Record<string, ShopRole> = {};
+  for (const [rawShop, rawRole] of Object.entries(input as Record<string, unknown>)) {
+    const shop = normalizeShopDomain(rawShop);
+    if (!shop || !allowedShops.has(shop)) {
+      continue;
+    }
+    if (rawRole === ShopRole.ADMIN || rawRole === ShopRole.VIEWER) {
+      next[shop] = rawRole;
+    }
+  }
+  return next;
+}
+
+function rolesRecordToMap(shops: string[], rolesByShop: Record<string, ShopRole>) {
+  const map = new Map<string, ShopRole>();
+  for (const shop of shops) {
+    map.set(shop, rolesByShop[shop] ?? ShopRole.VIEWER);
+  }
+  return map;
+}
+
 function parseCookieHeader(cookieHeader: string | null, key: string): string | null {
   if (!cookieHeader) return null;
   const parts = cookieHeader.split(";");
@@ -139,8 +184,11 @@ function verifySignedSessionValue(value: string | null | undefined, secret: stri
   try {
     const parsed = JSON.parse(base64UrlDecode(encodedPayload)) as Partial<AppSessionPayload>;
     const shops = sanitizeShops(Array.isArray(parsed.shops) ? parsed.shops : []);
+    const shopSet = new Set(shops);
+    const roles = sanitizeRoleMap(parsed.roles, shopSet);
     const exp = typeof parsed.exp === "number" ? parsed.exp : 0;
     const iat = typeof parsed.iat === "number" ? parsed.iat : 0;
+    const sub = typeof parsed.sub === "string" ? parsed.sub : undefined;
 
     const now = Math.floor(Date.now() / 1000);
     if (exp <= now) return null;
@@ -148,6 +196,8 @@ function verifySignedSessionValue(value: string | null | undefined, secret: stri
 
     return {
       shops,
+      roles,
+      sub,
       iat,
       exp,
     };
@@ -157,28 +207,49 @@ function verifySignedSessionValue(value: string | null | undefined, secret: stri
 }
 
 export async function getAuthorizedShopsFromCookie(): Promise<string[]> {
+  const session = await getAuthorizedSessionFromCookie();
+  return session.shops;
+}
+
+export async function getAuthorizedSessionFromCookie(): Promise<{
+  shops: string[];
+  rolesByShop: Record<string, ShopRole>;
+  subjectExternalId: string | null;
+}> {
   try {
     const secret = getApiSecret();
     const cookieStore = await cookies();
     const value = cookieStore.get(APP_SESSION_COOKIE)?.value;
     const payload = verifySignedSessionValue(value, secret);
-    return payload?.shops ?? [];
+    return {
+      shops: payload?.shops ?? [],
+      rolesByShop: payload?.roles ?? {},
+      subjectExternalId: payload?.sub ?? null,
+    };
   } catch {
-    return [];
+    return {
+      shops: [],
+      rolesByShop: {},
+      subjectExternalId: null,
+    };
   }
 }
 
-export async function setAuthorizedShopsCookie(shops: string[]) {
+export async function setAuthorizedSessionCookie(data: AuthorizedSessionData) {
   const secret = getApiSecret();
-  const normalizedShops = sanitizeShops(shops);
+  const normalizedShops = sanitizeShops(data.shops);
   if (!normalizedShops.length) {
     await clearAuthorizedShopsCookie();
     return;
   }
 
+  const shopSet = new Set(normalizedShops);
+  const sanitizedRoles = sanitizeRoleMap(data.rolesByShop ?? {}, shopSet);
   const now = Math.floor(Date.now() / 1000);
   const payload: AppSessionPayload = {
     shops: normalizedShops,
+    roles: Object.keys(sanitizedRoles).length ? sanitizedRoles : undefined,
+    sub: data.subjectExternalId ?? undefined,
     iat: now,
     exp: now + APP_SESSION_TTL_SECONDS,
   };
@@ -195,20 +266,32 @@ export async function setAuthorizedShopsCookie(shops: string[]) {
   });
 }
 
+export async function setAuthorizedShopsCookie(shops: string[]) {
+  await setAuthorizedSessionCookie({ shops });
+}
+
 export async function extendAuthorizedShopsCookie(shopDomain: string) {
   const normalized = normalizeShopDomain(shopDomain);
   if (!normalized) return;
 
-  const existing = await getAuthorizedShopsFromCookie();
-  await setAuthorizedShopsCookie([...existing, normalized]);
+  const existing = await getAuthorizedSessionFromCookie();
+  await setAuthorizedSessionCookie({
+    shops: [...existing.shops, normalized],
+    rolesByShop: existing.rolesByShop,
+    subjectExternalId: existing.subjectExternalId,
+  });
 }
 
 export async function removeAuthorizedShopFromCookie(shopDomain: string) {
   const normalized = normalizeShopDomain(shopDomain);
   if (!normalized) return;
 
-  const existing = await getAuthorizedShopsFromCookie();
-  await setAuthorizedShopsCookie(existing.filter((shop) => shop !== normalized));
+  const existing = await getAuthorizedSessionFromCookie();
+  await setAuthorizedSessionCookie({
+    shops: existing.shops.filter((shop) => shop !== normalized),
+    rolesByShop: existing.rolesByShop,
+    subjectExternalId: existing.subjectExternalId,
+  });
 }
 
 export async function clearAuthorizedShopsCookie() {
@@ -224,7 +307,8 @@ export async function clearAuthorizedShopsCookie() {
 }
 
 export async function requireAppPageAuth() {
-  const authorizedShops = await getAuthorizedShopsFromCookie();
+  const session = await getAuthorizedSessionFromCookie();
+  const authorizedShops = session.shops;
   if (!authorizedShops.length) {
     redirect("/connections?auth=required");
   }
@@ -232,6 +316,8 @@ export async function requireAppPageAuth() {
   return {
     authorizedShops,
     authorizedShopSet: new Set(authorizedShops),
+    shopRoles: rolesRecordToMap(authorizedShops, session.rolesByShop),
+    actorExternalId: session.subjectExternalId,
   };
 }
 
@@ -255,18 +341,242 @@ export function resolveRequestedShop(queryShop: string | null, bodyShop: string 
   };
 }
 
-export function isAuthorizedForShop(auth: ApiAuthSuccess, shopDomain: string | null | undefined) {
+export function getShopRoleForDomain(
+  auth: Pick<ApiAuthSuccess, "authorizedShops" | "shopRoles">,
+  shopDomain: string | null | undefined,
+): ShopRole | null {
   const normalized = normalizeShopDomain(shopDomain);
-  if (!normalized) return false;
-  return auth.authorizedShops.has(normalized);
+  if (!normalized || !auth.authorizedShops.has(normalized)) {
+    return null;
+  }
+  return auth.shopRoles.get(normalized) ?? ShopRole.VIEWER;
+}
+
+export function hasRequiredRole(role: ShopRole | null, requiredRole: ShopRole) {
+  if (!role) return false;
+  if (requiredRole === ShopRole.VIEWER) {
+    return role === ShopRole.VIEWER || role === ShopRole.ADMIN;
+  }
+  return role === ShopRole.ADMIN;
+}
+
+export function isAuthorizedForShop(auth: ApiAuthSuccess, shopDomain: string | null | undefined) {
+  const role = getShopRoleForDomain(auth, shopDomain);
+  return hasRequiredRole(role, ShopRole.VIEWER);
+}
+
+export function isAuthorizedForShopRole(
+  auth: ApiAuthSuccess,
+  shopDomain: string | null | undefined,
+  requiredRole: ShopRole,
+) {
+  const role = getShopRoleForDomain(auth, shopDomain);
+  return hasRequiredRole(role, requiredRole);
+}
+
+function deriveDisplayName(payload: Record<string, unknown>) {
+  const name = typeof payload.name === "string" ? payload.name.trim() : "";
+  if (name) return name;
+  const firstName = typeof payload.first_name === "string" ? payload.first_name.trim() : "";
+  const lastName = typeof payload.last_name === "string" ? payload.last_name.trim() : "";
+  const combined = `${firstName} ${lastName}`.trim();
+  return combined || null;
+}
+
+async function resolveUserSessionDataForSubjectExternalId(subjectExternalId: string): Promise<SessionData | null> {
+  try {
+    const user = await prisma.appUser.findUnique({
+      where: {
+        provider_externalId: {
+          provider: "shopify",
+          externalId: subjectExternalId,
+        },
+      },
+      select: {
+        externalId: true,
+        memberships: {
+          select: {
+            role: true,
+            shop: { select: { shopDomain: true } },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    const rolesByShop = user.memberships.reduce<Record<string, ShopRole>>((acc, membership) => {
+      const normalizedShop = normalizeShopDomain(membership.shop.shopDomain);
+      if (normalizedShop) {
+        acc[normalizedShop] = membership.role;
+      }
+      return acc;
+    }, {});
+
+    const shops = Object.keys(rolesByShop);
+    return {
+      subjectExternalId: user.externalId,
+      shops,
+      rolesByShop,
+    };
+  } catch (error) {
+    logWarn("rbac_cookie_membership_revalidation_failed", {
+      subjectExternalId,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+    return null;
+  }
+}
+
+async function resolveUserSessionDataForToken(shopDomain: string, payload: Record<string, unknown>): Promise<SessionData> {
+  const subjectExternalId = typeof payload.sub === "string" ? payload.sub : "";
+  if (!subjectExternalId) {
+    return {
+      subjectExternalId: "",
+      shops: [shopDomain],
+      rolesByShop: { [shopDomain]: ShopRole.ADMIN },
+    };
+  }
+
+  try {
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: { id: true },
+    });
+
+    if (!shop) {
+      return {
+        subjectExternalId,
+        shops: [shopDomain],
+        rolesByShop: { [shopDomain]: ShopRole.ADMIN },
+      };
+    }
+
+    const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : null;
+    const displayName = deriveDisplayName(payload);
+
+    const data = await prisma.$transaction(async (tx) => {
+      const user = await tx.appUser.upsert({
+        where: {
+          provider_externalId: {
+            provider: "shopify",
+            externalId: subjectExternalId,
+          },
+        },
+        create: {
+          provider: "shopify",
+          externalId: subjectExternalId,
+          email: email || undefined,
+          displayName: displayName || undefined,
+        },
+        update: {
+          email: email || undefined,
+          displayName: displayName || undefined,
+        },
+        select: { id: true },
+      });
+
+      const existingMembership = await tx.shopMembership.findUnique({
+        where: {
+          userId_shopId: {
+            userId: user.id,
+            shopId: shop.id,
+          },
+        },
+        select: { id: true },
+      });
+
+      if (!existingMembership) {
+        const hasMemberships =
+          (await tx.shopMembership.count({
+            where: { shopId: shop.id },
+          })) > 0;
+
+        await tx.shopMembership.create({
+          data: {
+            userId: user.id,
+            shopId: shop.id,
+            role: hasMemberships ? ShopRole.VIEWER : ShopRole.ADMIN,
+          },
+        });
+      }
+
+      return tx.shopMembership.findMany({
+        where: { userId: user.id },
+        select: {
+          role: true,
+          shop: { select: { shopDomain: true } },
+        },
+      });
+    });
+
+    const rolesByShop = data.reduce<Record<string, ShopRole>>((acc, membership) => {
+      const normalizedShop = normalizeShopDomain(membership.shop.shopDomain);
+      if (normalizedShop) {
+        acc[normalizedShop] = membership.role;
+      }
+      return acc;
+    }, {});
+    const shops = Object.keys(rolesByShop);
+
+    if (!shops.length) {
+      return {
+        subjectExternalId,
+        shops: [shopDomain],
+        rolesByShop: { [shopDomain]: ShopRole.ADMIN },
+      };
+    }
+
+    return {
+      subjectExternalId,
+      shops,
+      rolesByShop,
+    };
+  } catch (error) {
+    logWarn("rbac_user_membership_resolve_failed", {
+      shopDomain,
+      error: error instanceof Error ? error.message : "unknown_error",
+    });
+
+    return {
+      subjectExternalId,
+      shops: [shopDomain],
+      rolesByShop: { [shopDomain]: ShopRole.VIEWER },
+    };
+  }
+}
+
+export async function establishSessionFromToken(shopDomain: string, payload: Record<string, unknown>) {
+  const normalizedShop = normalizeShopDomain(shopDomain);
+  if (!normalizedShop) {
+    throw new Error("Invalid shop domain");
+  }
+
+  const sessionData = await resolveUserSessionDataForToken(normalizedShop, payload);
+  await setAuthorizedSessionCookie({
+    shops: sessionData.shops,
+    rolesByShop: sessionData.rolesByShop,
+    subjectExternalId: sessionData.subjectExternalId,
+  });
+
+  return sessionData;
 }
 
 export async function authenticateApiRequest(request: Request): Promise<ApiAuthResult> {
   const tokenAuth = authenticateShopifyRequest(request);
   if (tokenAuth.ok) {
+    const sessionData = await resolveUserSessionDataForToken(
+      tokenAuth.shop,
+      tokenAuth.payload as unknown as Record<string, unknown>,
+    );
+
     return {
       ok: true,
-      authorizedShops: new Set([tokenAuth.shop]),
+      authorizedShops: new Set(sessionData.shops),
+      shopRoles: rolesRecordToMap(sessionData.shops, sessionData.rolesByShop),
+      actorExternalId: sessionData.subjectExternalId,
       source: "token",
     };
   }
@@ -277,9 +587,38 @@ export async function authenticateApiRequest(request: Request): Promise<ApiAuthR
     const payload = verifySignedSessionValue(cookieValue, secret);
 
     if (payload?.shops.length) {
+      const cookieShops = sanitizeShops(payload.shops);
+      if (payload.sub) {
+        const dbSession = await resolveUserSessionDataForSubjectExternalId(payload.sub);
+        if (dbSession) {
+          const rolesByShop = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
+            const role = dbSession.rolesByShop[shop];
+            if (role) {
+              acc[shop] = role;
+            }
+            return acc;
+          }, {});
+          const authorizedShops = Object.keys(rolesByShop);
+          return {
+            ok: true,
+            authorizedShops: new Set(authorizedShops),
+            shopRoles: rolesRecordToMap(authorizedShops, rolesByShop),
+            actorExternalId: dbSession.subjectExternalId,
+            source: "cookie",
+          };
+        }
+      }
+
+      // Fail closed: when DB revalidation is unavailable, keep read access only.
+      const downgradedRoles = cookieShops.reduce<Record<string, ShopRole>>((acc, shop) => {
+        acc[shop] = ShopRole.VIEWER;
+        return acc;
+      }, {});
       return {
         ok: true,
-        authorizedShops: new Set(payload.shops),
+        authorizedShops: new Set(cookieShops),
+        shopRoles: rolesRecordToMap(cookieShops, downgradedRoles),
+        actorExternalId: payload.sub ?? null,
         source: "cookie",
       };
     }

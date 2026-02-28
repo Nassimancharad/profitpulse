@@ -4,16 +4,17 @@ import { useState } from "react";
 
 type OverflowMenuProps = {
   shopDomain?: string;
+  canManage?: boolean;
 };
 
 /**
  * Sync button placed left of the date picker. Triggers a data refresh for the current shop.
  */
-export function OverflowMenu({ shopDomain }: OverflowMenuProps) {
+export function OverflowMenu({ shopDomain, canManage = true }: OverflowMenuProps) {
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
 
   const handleSync = async () => {
-    if (!shopDomain || status === "loading") return;
+    if (!shopDomain || status === "loading" || !canManage) return;
     setStatus("loading");
     try {
       await fetch(`/api/sync?shop=${encodeURIComponent(shopDomain)}`, { method: "POST" });
@@ -30,6 +31,7 @@ export function OverflowMenu({ shopDomain }: OverflowMenuProps) {
       type="button"
       onClick={handleSync}
       aria-label="Refresh data"
+      disabled={!canManage || status === "loading"}
       className="pp-btn pp-btn-secondary glass-inset h-10 w-full justify-center gap-2 px-3 text-sm sm:w-auto"
     >
       <svg
@@ -68,7 +70,7 @@ export function OverflowMenu({ shopDomain }: OverflowMenuProps) {
         />
       </svg>
       <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--pp-muted)]">
-        {status === "loading" ? "Syncing" : status === "done" ? "Synced" : "Sync"}
+        {status === "loading" ? "Syncing" : status === "done" ? "Synced" : canManage ? "Sync" : "View only"}
       </span>
     </button>
   );

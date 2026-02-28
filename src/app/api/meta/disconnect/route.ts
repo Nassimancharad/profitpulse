@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
+import { authenticateApiRequest, isAuthorizedForShopRole } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   if (!shopDomain) {
     return NextResponse.redirect(`${appBase}/connections?meta=missing_shop`);
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
+  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
     return NextResponse.redirect(`${appBase}/connections?meta=forbidden`);
   }
 

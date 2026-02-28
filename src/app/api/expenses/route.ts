@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { ShopRole } from "@prisma/client";
 import prisma from '@/lib/prisma';
-import { authenticateApiRequest, isAuthorizedForShop } from '@/lib/auth';
+import { authenticateApiRequest, isAuthorizedForShopRole } from '@/lib/auth';
 
 type Payload = {
   shop?: string;
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
   const deleteId = url.searchParams.get('id');
   const deleteShop = url.searchParams.get('shop');
   if (url.searchParams.get('delete') === '1' && deleteId && deleteShop) {
-    if (!isAuthorizedForShop(auth, deleteShop)) {
+    if (!isAuthorizedForShopRole(auth, deleteShop, ShopRole.ADMIN)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: 'Missing shop domain' }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
+  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -152,7 +153,7 @@ export async function DELETE(request: Request) {
   if (!id || !shopDomain) {
     return NextResponse.json({ error: 'Missing id or shop' }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
+  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

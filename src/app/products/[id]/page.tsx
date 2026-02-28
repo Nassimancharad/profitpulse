@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
+import { ShopRole } from '@prisma/client';
 import { notFound } from 'next/navigation';
 import { requireAppPageAuth } from '@/lib/auth';
 import { AppShell } from '@/components/AppShell';
@@ -20,7 +21,7 @@ type PageProps = {
 };
 
 export default async function ProductDetailPage({ params, searchParams }: PageProps) {
-  const { authorizedShopSet } = await requireAppPageAuth();
+  const { authorizedShopSet, shopRoles } = await requireAppPageAuth();
   const { id: productId } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
@@ -110,6 +111,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
   if (!authorizedShopSet.has(product.shop.shopDomain)) {
     notFound();
   }
+  const canManage = shopRoles.get(product.shop.shopDomain) === ShopRole.ADMIN;
 
   const currencyFormatter = getCurrencyFormatter({ currency: product.shop.currency });
   const numberFormatter = getNumberFormatter();
@@ -196,7 +198,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
     />
   );
 
-  const overflowActions = <OverflowMenu shopDomain={product.shop.shopDomain} />;
+  const overflowActions = <OverflowMenu shopDomain={product.shop.shopDomain} canManage={canManage} />;
 
   return (
     <AppShell
@@ -229,7 +231,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
               >
                 ← Back to products
               </Link>
-              <SyncNowButton shopDomain={product.shop.shopDomain} />
+              <SyncNowButton shopDomain={product.shop.shopDomain} canManage={canManage} />
             </div>
           </div>
           <ProductAvatar title={product.title} imageUrl={product.imageUrl ?? null} size="lg" />
@@ -319,6 +321,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
             productId={product.id}
             initialCost={product.costPerUnit}
             shopDomain={product.shop.shopDomain}
+            canManage={canManage}
             variants={product.variants.map((variant) => ({
               id: variant.id,
               title: variant.title,
@@ -334,6 +337,7 @@ export default async function ProductDetailPage({ params, searchParams }: PagePr
             linkedCampaigns={linkedCampaigns}
             campaigns={availableCampaigns}
             shopDomain={product.shop.shopDomain}
+            canManage={canManage}
           />
         </div>
       </div>

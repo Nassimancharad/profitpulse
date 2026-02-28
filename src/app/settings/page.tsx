@@ -1,8 +1,10 @@
 import { AppShell } from '@/components/AppShell';
+import { ShopRole } from "@prisma/client";
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopConnectForm } from '@/components/ShopConnectForm';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
+import { TeamMembersPanel } from '@/components/TeamMembersPanel';
 import { requireAppPageAuth } from '@/lib/auth';
 import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
@@ -14,7 +16,7 @@ type SettingsPageProps = {
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-  const { authorizedShops } = await requireAppPageAuth();
+  const { authorizedShops, shopRoles } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops = await prisma.shop.findMany({
     where: { shopDomain: { in: authorizedShops } },
@@ -86,11 +88,12 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       </AppShell>
     );
   }
-
+  const canManage = shopRoles.get(shop.shopDomain) === ShopRole.ADMIN;
 
   const overflowActions = (
     <OverflowMenu
       shopDomain={shop.shopDomain}
+      canManage={canManage}
     />
   );
   const shopSelector = (
@@ -126,11 +129,12 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
               <p className="text-sm text-[color:var(--pp-muted)]">Installed {installedAt}</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <SyncNowButton shopDomain={shop.shopDomain} />
+              <SyncNowButton shopDomain={shop.shopDomain} canManage={canManage} />
             </div>
           </div>
         </section>
 
+        <TeamMembersPanel shopDomain={shop.shopDomain} canManage={canManage} />
 
       </div>
     </AppShell>
