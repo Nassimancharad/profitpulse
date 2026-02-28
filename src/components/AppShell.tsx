@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { isEmbeddedAppContext, resolveEmbeddedAppContext } from "@/lib/embeddedAppContext";
 import { PageTopBar } from "./PageTopBar";
 import { SessionBootstrap } from "./SessionBootstrap";
 
@@ -62,7 +63,17 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const embeddedContext = useMemo(
+    () =>
+      resolveEmbeddedAppContext({
+        searchParams,
+        cookieHeader: typeof document !== "undefined" ? document.cookie : null,
+      }),
+    [searchParams],
+  );
+  const isEmbedded = isEmbeddedAppContext(embeddedContext);
 
   const activeHref = useMemo(() => {
     const match = NAV_ITEMS.find((item) =>
@@ -75,34 +86,36 @@ export function AppShell({
     <div className="min-h-screen w-full bg-[var(--pp-bg)] text-[color:var(--pp-foreground)]">
       <SessionBootstrap />
       <div className="flex min-h-screen w-full">
-        <aside className="hidden w-64 flex-shrink-0 flex-col bg-[var(--pp-surface-glass-subtle)] px-4 py-6 backdrop-blur lg:flex">
-          <div className="rounded-3xl border border-[color:var(--pp-border)] bg-white/70 px-4 py-4 shadow-[0_12px_30px_-18px_rgba(17,18,22,0.35)]">
-            <div className="text-lg font-semibold text-[color:var(--pp-foreground)]">
-              ProfitPulse
+        {!isEmbedded ? (
+          <aside className="hidden w-64 flex-shrink-0 flex-col bg-[var(--pp-surface-glass-subtle)] px-4 py-6 backdrop-blur lg:flex">
+            <div className="rounded-3xl border border-[color:var(--pp-border)] bg-white/70 px-4 py-4 shadow-[0_12px_30px_-18px_rgba(17,18,22,0.35)]">
+              <div className="text-lg font-semibold text-[color:var(--pp-foreground)]">
+                ProfitPulse
+              </div>
             </div>
-          </div>
-          <p className="mt-4 px-2 text-xs uppercase tracking-[0.3em] text-[color:var(--pp-muted)]">
-            Analytics
-          </p>
-          <nav className="mt-4 space-y-1">
-            {NAV_ITEMS.map((item) => {
-              const isActive = activeHref === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-white/60 ${
-                    isActive
-                      ? "glass-inset border border-[color:var(--pp-border)] bg-white/70 text-[color:var(--pp-foreground)]"
-                      : "text-[color:var(--pp-muted)]"
-                  }`}
-                >
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
+            <p className="mt-4 px-2 text-xs uppercase tracking-[0.3em] text-[color:var(--pp-muted)]">
+              Analytics
+            </p>
+            <nav className="mt-4 space-y-1">
+              {NAV_ITEMS.map((item) => {
+                const isActive = activeHref === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-white/60 ${
+                      isActive
+                        ? "glass-inset border border-[color:var(--pp-border)] bg-white/70 text-[color:var(--pp-foreground)]"
+                        : "text-[color:var(--pp-muted)]"
+                    }`}
+                  >
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </aside>
+        ) : null}
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-30 bg-[var(--pp-bg)]/80 shadow-[0_12px_30px_-18px_rgba(17,18,22,0.25)] backdrop-blur">
@@ -112,14 +125,16 @@ export function AppShell({
                   title={title}
                   subtitle={subtitle}
                   leadingAction={
-                    <button
-                      type="button"
-                      className="pp-btn pp-btn-secondary glass-inset h-10 w-10 text-lg lg:hidden"
-                      aria-label="Open navigation"
-                      onClick={() => setMobileNavOpen(true)}
-                    >
-                      ☰
-                    </button>
+                    !isEmbedded ? (
+                      <button
+                        type="button"
+                        className="pp-btn pp-btn-secondary glass-inset h-10 w-10 text-lg lg:hidden"
+                        aria-label="Open navigation"
+                        onClick={() => setMobileNavOpen(true)}
+                      >
+                        ☰
+                      </button>
+                    ) : null
                   }
                 />
               </div>
@@ -158,11 +173,13 @@ export function AppShell({
         </div>
       </div>
 
-      <MobileNav
-        open={mobileNavOpen}
-        onClose={() => setMobileNavOpen(false)}
-        activeHref={activeHref}
-      />
+      {!isEmbedded ? (
+        <MobileNav
+          open={mobileNavOpen}
+          onClose={() => setMobileNavOpen(false)}
+          activeHref={activeHref}
+        />
+      ) : null}
     </div>
   );
 }
@@ -187,7 +204,7 @@ function MobileNav({ open, onClose, activeHref }: MobileNavProps) {
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-          <div className="flex items-center justify-between px-3">
+        <div className="flex items-center justify-between px-3">
           <div className="text-base font-semibold text-[color:var(--pp-foreground)]">
             ProfitPulse
           </div>
