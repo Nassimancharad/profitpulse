@@ -17,11 +17,24 @@ function buildCookiePolicy(request: NextRequest) {
   };
 }
 
+function applyEmbeddedFramePolicy(response: NextResponse) {
+  response.headers.delete("x-frame-options");
+  response.headers.delete("X-Frame-Options");
+  response.headers.set(
+    "Content-Security-Policy",
+    "frame-ancestors https://admin.shopify.com https://*.myshopify.com;",
+  );
+}
+
 export function middleware(request: NextRequest) {
   const response = NextResponse.next();
   const policy = buildCookiePolicy(request);
   const host = request.nextUrl.searchParams.get(EMBEDDED_APP_HOST_PARAM);
   const embedded = request.nextUrl.searchParams.get(EMBEDDED_APP_FLAG_PARAM);
+  const embeddedCookie = request.cookies.get(EMBEDDED_APP_FLAG_COOKIE)?.value;
+  const hostCookie = request.cookies.get(EMBEDDED_APP_HOST_COOKIE)?.value;
+  const isEmbeddedRequest =
+    embedded === "1" || Boolean(host) || embeddedCookie === "1" || Boolean(hostCookie);
 
   if (host) {
     response.cookies.set(EMBEDDED_APP_HOST_COOKIE, host, policy);
@@ -32,6 +45,10 @@ export function middleware(request: NextRequest) {
   } else if (embedded === "0") {
     response.cookies.delete(EMBEDDED_APP_FLAG_COOKIE);
     response.cookies.delete(EMBEDDED_APP_HOST_COOKIE);
+  }
+
+  if (isEmbeddedRequest) {
+    applyEmbeddedFramePolicy(response);
   }
 
   return response;
