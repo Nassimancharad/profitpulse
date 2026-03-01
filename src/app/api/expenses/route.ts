@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ShopRole } from "@prisma/client";
 import prisma from '@/lib/prisma';
-import { authenticateApiRequest, isAuthorizedForShopRole } from '@/lib/auth';
+import { authenticateApiRequest, requireAuthorizedShopRole } from '@/lib/auth';
 
 type Payload = {
   shop?: string;
@@ -37,8 +37,9 @@ export async function POST(request: Request) {
   const deleteId = url.searchParams.get('id');
   const deleteShop = url.searchParams.get('shop');
   if (url.searchParams.get('delete') === '1' && deleteId && deleteShop) {
-    if (!isAuthorizedForShopRole(auth, deleteShop, ShopRole.ADMIN)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const roleGuard = requireAuthorizedShopRole(auth, deleteShop, ShopRole.ADMIN);
+    if (roleGuard) {
+      return roleGuard;
     }
 
     const shop = await prisma.shop.findUnique({
@@ -88,8 +89,9 @@ export async function POST(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: 'Missing shop domain' }, { status: 400 });
   }
-  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const roleGuard = requireAuthorizedShopRole(auth, shopDomain, ShopRole.ADMIN);
+  if (roleGuard) {
+    return roleGuard;
   }
 
   const name = payload.name?.trim();
@@ -153,8 +155,9 @@ export async function DELETE(request: Request) {
   if (!id || !shopDomain) {
     return NextResponse.json({ error: 'Missing id or shop' }, { status: 400 });
   }
-  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const deleteRoleGuard = requireAuthorizedShopRole(auth, shopDomain, ShopRole.ADMIN);
+  if (deleteRoleGuard) {
+    return deleteRoleGuard;
   }
 
   const shop = await prisma.shop.findUnique({

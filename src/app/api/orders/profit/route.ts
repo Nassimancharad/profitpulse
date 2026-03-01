@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrderProfitBreakdown, getShopIdByDomain } from "@/data";
 import { parseOrderProfitQuery, toOrderProfitResponseDto } from "@/domain";
-import { authenticateApiRequest, isAuthorizedForShop } from "@/lib/auth";
+import { authenticateApiRequest, requireAuthorizedShop } from "@/lib/auth";
 
 export async function GET(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -14,8 +14,9 @@ export async function GET(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop. Provide ?shop=<myshop>.myshopify.com." }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const shopGuard = requireAuthorizedShop(auth, shopDomain);
+  if (shopGuard) {
+    return shopGuard;
   }
 
   const shop = await getShopIdByDomain(shopDomain);

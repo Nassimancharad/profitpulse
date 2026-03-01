@@ -374,6 +374,27 @@ export function isAuthorizedForShopRole(
   return hasRequiredRole(role, requiredRole);
 }
 
+export function requireAuthorizedShop(
+  auth: ApiAuthSuccess,
+  shopDomain: string | null | undefined,
+) {
+  if (isAuthorizedForShop(auth, shopDomain)) {
+    return null;
+  }
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+
+export function requireAuthorizedShopRole(
+  auth: ApiAuthSuccess,
+  shopDomain: string | null | undefined,
+  requiredRole: ShopRole,
+) {
+  if (isAuthorizedForShopRole(auth, shopDomain, requiredRole)) {
+    return null;
+  }
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+
 function deriveDisplayName(payload: Record<string, unknown>) {
   const name = typeof payload.name === "string" ? payload.name.trim() : "";
   if (name) return name;
