@@ -64,35 +64,42 @@ export function ShopifyEmbeddedApp({ apiKey }: ShopifyEmbeddedAppProps) {
 
   useEffect(() => {
     if (!apiKey || !host) return;
+    try {
+      const app = createApp({
+        apiKey,
+        host,
+        forceRedirect: true,
+      });
 
-    const app = createApp({
-      apiKey,
-      host,
-      forceRedirect: true,
-    });
+      const currentParams = new URLSearchParams(searchParams?.toString() ?? "");
+      applyEmbeddedAppContextToSearchParams(currentParams, embeddedContext);
+      const links = NAV_ITEMS.map((item) =>
+        AppLink.create(app, {
+          label: item.label,
+          destination: withEmbedParams(item.href, currentParams),
+        }),
+      );
 
-    const currentParams = new URLSearchParams(searchParams?.toString() ?? "");
-    applyEmbeddedAppContextToSearchParams(currentParams, embeddedContext);
-    const links = NAV_ITEMS.map((item) =>
-      AppLink.create(app, {
-        label: item.label,
-        destination: withEmbedParams(item.href, currentParams),
-      }),
-    );
+      const activeLink = activeHref
+        ? links.find((_, index) => NAV_ITEMS[index]?.href === activeHref)
+        : undefined;
 
-    const activeLink = activeHref
-      ? links.find((_, index) => NAV_ITEMS[index]?.href === activeHref)
-      : undefined;
+      const navigationMenu = NavigationMenu.create(app, {
+        items: links,
+        active: activeLink,
+      });
 
-    const navigationMenu = NavigationMenu.create(app, {
-      items: links,
-      active: activeLink,
-    });
-
-    return () => {
-      navigationMenu.unsubscribe();
-      links.forEach((link) => link.unsubscribe());
-    };
+      return () => {
+        navigationMenu.unsubscribe();
+        links.forEach((link) => link.unsubscribe());
+      };
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.error("Embedded app bridge init failed", error);
+      }
+      return undefined;
+    }
   }, [activeHref, apiKey, embeddedContext, host, searchParams]);
 
   return null;

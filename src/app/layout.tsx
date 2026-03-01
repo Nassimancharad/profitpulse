@@ -20,11 +20,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const appBridgeApiKey = process.env.SHOPIFY_API_KEY;
+  const appBridgeApiKey =
+    process.env.NEXT_PUBLIC_SHOPIFY_API_KEY ?? process.env.SHOPIFY_API_KEY;
 
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body
+        className="antialiased"
+        data-shopify-api-key={appBridgeApiKey ?? ""}
+      >
         <Suspense fallback={null}>
           <ShopifyEmbeddedApp apiKey={appBridgeApiKey} />
         </Suspense>
