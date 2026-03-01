@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { ShopifyEmbeddedApp } from "@/components/ShopifyEmbeddedApp";
-import { Suspense } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,9 +26,6 @@ export default function RootLayout({
         className="antialiased"
         data-shopify-api-key={appBridgeApiKey ?? ""}
       >
-        <Suspense fallback={null}>
-          <ShopifyEmbeddedApp apiKey={appBridgeApiKey} />
-        </Suspense>
         {children}
       </body>
     </html>
