@@ -19,17 +19,25 @@ export default async function Home({ searchParams }: HomePageProps) {
   const isEmbedded = params?.embedded === "1" || Boolean(params?.host);
 
   if (isEmbedded) {
-    const dashboardParams = new URLSearchParams();
-    const forwardedKeys = ["shop", "host", "embedded", "hmac", "id_token", "locale", "session", "timestamp"];
+    const nextParams = new URLSearchParams();
+    const hasIdToken = typeof params?.id_token === "string" && params.id_token.length > 0;
+    const forwardedKeys = hasIdToken
+      ? ["shop", "host", "embedded", "id_token", "locale"]
+      : ["shop", "host", "embedded", "locale"];
+
     for (const key of forwardedKeys) {
       const value = params?.[key as keyof typeof params];
       if (typeof value === "string" && value.length > 0) {
-        dashboardParams.set(key, value);
+        nextParams.set(key, value);
       }
     }
 
-    const query = dashboardParams.toString();
-    redirect(query ? `/dashboard?${query}` : "/dashboard");
+    const query = nextParams.toString();
+    if (hasIdToken) {
+      redirect(query ? `/api/auth/shopify/embedded-entry?${query}` : "/api/auth/shopify/embedded-entry");
+    }
+
+    redirect(query ? `/connections?${query}` : "/connections");
   }
 
   return (
