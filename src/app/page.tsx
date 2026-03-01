@@ -1,6 +1,37 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
-export default function Home() {
+type HomePageProps = {
+  searchParams?: Promise<{
+    embedded?: string;
+    host?: string;
+    shop?: string;
+    hmac?: string;
+    id_token?: string;
+    locale?: string;
+    session?: string;
+    timestamp?: string;
+  }>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const params = searchParams ? await searchParams : undefined;
+  const isEmbedded = params?.embedded === "1" || Boolean(params?.host);
+
+  if (isEmbedded) {
+    const dashboardParams = new URLSearchParams();
+    const forwardedKeys = ["shop", "host", "embedded", "hmac", "id_token", "locale", "session", "timestamp"];
+    for (const key of forwardedKeys) {
+      const value = params?.[key as keyof typeof params];
+      if (typeof value === "string" && value.length > 0) {
+        dashboardParams.set(key, value);
+      }
+    }
+
+    const query = dashboardParams.toString();
+    redirect(query ? `/dashboard?${query}` : "/dashboard");
+  }
+
   return (
     <div className="relative min-h-screen bg-[var(--pp-bg)] text-[color:var(--pp-foreground)]">
       <div
