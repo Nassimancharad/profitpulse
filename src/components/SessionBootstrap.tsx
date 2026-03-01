@@ -6,9 +6,7 @@ import { useEffect } from "react";
 
 export function SessionBootstrap() {
   useEffect(() => {
-    const apiKey =
-      process.env.NEXT_PUBLIC_SHOPIFY_API_KEY ??
-      document.body?.dataset?.shopifyApiKey;
+    const apiKey = document.body?.dataset?.shopifyApiKey;
     if (!apiKey) {
       return;
     }

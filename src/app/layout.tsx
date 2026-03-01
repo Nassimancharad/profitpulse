@@ -20,8 +20,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const appBridgeApiKey =
-    process.env.NEXT_PUBLIC_SHOPIFY_API_KEY ?? process.env.SHOPIFY_API_KEY;
+  const appBridgeApiKey = process.env.SHOPIFY_API_KEY;
 
   return (
     <html lang="en">
