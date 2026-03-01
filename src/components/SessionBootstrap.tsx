@@ -6,7 +6,7 @@ import { useEffect } from "react";
 
 export function SessionBootstrap() {
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
+    const apiKey = document.body?.dataset?.shopifyApiKey;
     if (!apiKey) {
       return;
     }
@@ -38,8 +38,12 @@ export function SessionBootstrap() {
           },
           cache: "no-store",
         });
-      } catch {
-        // Ignore bootstrap failures in non-embedded/dev contexts.
+      } catch (error) {
+        // Avoid hard failures in mixed embedded/non-embedded contexts.
+        if (process.env.NODE_ENV !== "production") {
+          // eslint-disable-next-line no-console
+          console.error("Session bootstrap failed", error);
+        }
       }
     };
 

@@ -24,7 +24,10 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body className="antialiased">
+      <body
+        className="antialiased"
+        data-shopify-api-key={appBridgeApiKey ?? ""}
+      >
         <Suspense fallback={null}>
           <ShopifyEmbeddedApp apiKey={appBridgeApiKey} />
         </Suspense>
