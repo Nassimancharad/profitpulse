@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ShopRole } from "@prisma/client";
 import { syncShopifyPayments } from "@/ingestion";
-import { authenticateApiRequest, isAuthorizedForShopRole, resolveRequestedShop } from "@/lib/auth";
+import { authenticateApiRequest, requireAuthorizedShopRole, resolveRequestedShop } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -37,8 +37,9 @@ export async function POST(request: Request) {
   if (!resolvedShop.shopDomain) {
     return NextResponse.json({ error: "Missing shop. Provide ?shop=<myshop>.myshopify.com." }, { status: 400 });
   }
-  if (!isAuthorizedForShopRole(auth, resolvedShop.shopDomain, ShopRole.ADMIN)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const roleGuard = requireAuthorizedShopRole(auth, resolvedShop.shopDomain, ShopRole.ADMIN);
+  if (roleGuard) {
+    return roleGuard;
   }
 
   const result = await syncShopifyPayments({

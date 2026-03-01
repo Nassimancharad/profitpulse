@@ -3,8 +3,8 @@ import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {
   authenticateApiRequest,
-  isAuthorizedForShop,
-  isAuthorizedForShopRole,
+  requireAuthorizedShop,
+  requireAuthorizedShopRole,
 } from "@/lib/auth";
 
 type UpdatePayload = {
@@ -38,8 +38,9 @@ export async function GET(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop query parameter." }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const shopGuard = requireAuthorizedShop(auth, shopDomain);
+  if (shopGuard) {
+    return shopGuard;
   }
 
   const shop = await prisma.shop.findUnique({
@@ -101,8 +102,9 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const roleGuard = requireAuthorizedShopRole(auth, shopDomain, ShopRole.ADMIN);
+  if (roleGuard) {
+    return roleGuard;
   }
 
   const shop = await prisma.shop.findUnique({

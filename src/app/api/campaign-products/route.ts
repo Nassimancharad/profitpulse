@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { authenticateApiRequest, isAuthorizedForShopRole } from "@/lib/auth";
+import { authenticateApiRequest, requireAuthorizedShopRole } from "@/lib/auth";
 
 export async function POST(request: Request) {
   try {
@@ -27,8 +27,9 @@ export async function POST(request: Request) {
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
-    if (!isAuthorizedForShopRole(auth, product.shop.shopDomain, ShopRole.ADMIN)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const roleGuard = requireAuthorizedShopRole(auth, product.shop.shopDomain, ShopRole.ADMIN);
+    if (roleGuard) {
+      return roleGuard;
     }
 
     if (action === "remove") {

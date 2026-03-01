@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { fetchMetaCampaigns } from "@/lib/meta";
-import { authenticateApiRequest, isAuthorizedForShop, isAuthorizedForShopRole } from "@/lib/auth";
+import { authenticateApiRequest, requireAuthorizedShop, requireAuthorizedShopRole } from "@/lib/auth";
 
 type CampaignRow = {
   id: string;
@@ -33,8 +33,9 @@ export async function GET(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop (?shop=...)" }, { status: 400 });
   }
-  if (!isAuthorizedForShop(auth, shopDomain)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const shopGuard = requireAuthorizedShop(auth, shopDomain);
+  if (shopGuard) {
+    return shopGuard;
   }
 
   const shop = await prisma.shop.findUnique({
@@ -69,8 +70,9 @@ export async function POST(request: Request) {
   if (!shopDomain) {
     return NextResponse.json({ error: "Missing shop (?shop=...)" }, { status: 400 });
   }
-  if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const roleGuard = requireAuthorizedShopRole(auth, shopDomain, ShopRole.ADMIN);
+  if (roleGuard) {
+    return roleGuard;
   }
 
   const shop = await prisma.shop.findUnique({
