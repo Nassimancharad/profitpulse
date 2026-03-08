@@ -32,7 +32,19 @@ export function ShopConnectForm() {
       return;
     }
     setError("");
-    window.location.href = `/api/auth/shopify/install?shop=${encodeURIComponent(normalized)}`;
+    const oauthUrl = `/api/auth/shopify/install?shop=${encodeURIComponent(normalized)}`;
+
+    // Shopify OAuth must escape iframe context.
+    try {
+      if (window.top) {
+        window.top.location.href = oauthUrl;
+        return;
+      }
+    } catch {
+      // Ignore cross-origin access issues and fall back to _top navigation.
+    }
+
+    window.open(oauthUrl, "_top");
   };
 
   return (
