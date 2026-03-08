@@ -11,7 +11,7 @@ import prisma from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 type ConnectionsPageProps = {
-  searchParams?: Promise<{ shop?: string; shopify?: string; meta?: string }>;
+  searchParams?: Promise<{ shop?: string; shopify?: string; meta?: string; auth?: string; auth_error?: string }>;
 };
 
 type StatusTone = "success" | "warning" | "error";
@@ -21,7 +21,24 @@ type StatusBanner = {
   message: string;
 };
 
-function mapStatus(shopify?: string, meta?: string): StatusBanner | null {
+function mapStatus(shopify?: string, meta?: string, auth?: string, authError?: string): StatusBanner | null {
+  if (auth === "required") {
+    const authMap: Record<string, string> = {
+      missing_id_token: "Embedded launch token is missing. Reopen the app from Shopify Admin.",
+      audience_mismatch: "Token audience mismatch. Check SHOPIFY_API_KEY in production env.",
+      invalid_signature: "Invalid embedded token signature. Check SHOPIFY_API_SECRET in production env.",
+      token_expired: "Embedded token expired. Reload the app from Shopify Admin.",
+      token_not_yet_valid: "Embedded token not yet valid. Retry in a few seconds.",
+      server_env_missing: "Server env vars missing for token verification. Check production configuration.",
+      session_bootstrap_failed: "Could not establish app session from embedded token.",
+    };
+
+    return {
+      tone: "error",
+      message: authMap[authError ?? ""] ?? "Authentication is required. Reopen the app from Shopify Admin.",
+    };
+  }
+
   if (shopify) {
     const shopifyMap: Record<string, StatusBanner> = {
       disconnected: { tone: "success", message: "Shopify store disconnected." },
@@ -172,7 +189,12 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
         year: "numeric",
       })
     : "—";
-  const banner = mapStatus(resolvedSearchParams?.shopify, resolvedSearchParams?.meta);
+  const banner = mapStatus(
+    resolvedSearchParams?.shopify,
+    resolvedSearchParams?.meta,
+    resolvedSearchParams?.auth,
+    resolvedSearchParams?.auth_error,
+  );
   const canManage = shopRoles.get(shop.shopDomain) === ShopRole.ADMIN;
   const shopSelector = (
     <ShopSwitcher
