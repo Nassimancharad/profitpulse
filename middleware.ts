@@ -31,10 +31,11 @@ export function middleware(request: NextRequest) {
   const policy = buildCookiePolicy(request);
   const host = request.nextUrl.searchParams.get(EMBEDDED_APP_HOST_PARAM);
   const embedded = request.nextUrl.searchParams.get(EMBEDDED_APP_FLAG_PARAM);
-  const embeddedCookie = request.cookies.get(EMBEDDED_APP_FLAG_COOKIE)?.value;
-  const hostCookie = request.cookies.get(EMBEDDED_APP_HOST_COOKIE)?.value;
-  const isEmbeddedRequest =
-    embedded === "1" || Boolean(host) || embeddedCookie === "1" || Boolean(hostCookie);
+  const accept = request.headers.get("accept") ?? "";
+  const isDocumentRequest =
+    request.method === "GET" &&
+    !request.nextUrl.pathname.startsWith("/api/") &&
+    accept.includes("text/html");
 
   if (host) {
     response.cookies.set(EMBEDDED_APP_HOST_COOKIE, host, policy);
@@ -47,7 +48,7 @@ export function middleware(request: NextRequest) {
     response.cookies.delete(EMBEDDED_APP_HOST_COOKIE);
   }
 
-  if (isEmbeddedRequest) {
+  if (isDocumentRequest) {
     applyEmbeddedFramePolicy(response);
   }
 
