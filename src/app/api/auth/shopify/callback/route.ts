@@ -46,6 +46,10 @@ function getEnv() {
   };
 }
 
+function buildShopifyAdminAppLaunchUrl(shop: string, apiKey: string) {
+  return `https://${shop}/admin/apps/${apiKey}`;
+}
+
 function isValidShopDomain(shop: string | null): shop is string {
   if (!shop) return false;
   try {
@@ -237,13 +241,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(fallbackUrl);
   }
 
-  const host = url.searchParams.get("host");
-  const embedded = url.searchParams.get("embedded");
-  const dashboardParams = new URLSearchParams();
-  dashboardParams.set("shop", shop);
-  if (host) dashboardParams.set("host", host);
-  if (embedded) dashboardParams.set("embedded", embedded);
-
-  const redirectUrl = `${env.appUrl}/dashboard?${dashboardParams.toString()}`;
-  return NextResponse.redirect(redirectUrl);
+  const launchUrl = buildShopifyAdminAppLaunchUrl(shop, env.apiKey);
+  return NextResponse.redirect(launchUrl);
 }
