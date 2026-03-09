@@ -23,6 +23,9 @@ model Shop {
   updatedAt   DateTime   @updatedAt
   paymentFeePct Float    @default(0)
   paymentFeeFixed Float  @default(0)
+  planTier     PlanTier   @default(FREE)
+  planStatus   PlanStatus @default(ACTIVE)
+  planUpdatedAt DateTime  @default(now())
 
   products    Product[]
   variants    Variant[]
@@ -222,6 +225,19 @@ model MetaCampaign {
 
   @@unique([shopId, campaignId])
   @@index([shopId, adAccountId])
+}
+
+enum PlanTier {
+  FREE
+  STANDARD
+  PREMIUM
+}
+
+enum PlanStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
 }
 
 enum SyncResource {
