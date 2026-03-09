@@ -3,6 +3,7 @@ import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { fetchMetaCampaigns } from "@/lib/meta";
 import { authenticateApiRequest, requireAuthorizedShop, requireAuthorizedShopRole } from "@/lib/auth";
+import { requireFeatureForShop } from "@/lib/planGate";
 
 type CampaignRow = {
   id: string;
@@ -36,6 +37,14 @@ export async function GET(request: Request) {
   const shopGuard = requireAuthorizedShop(auth, shopDomain);
   if (shopGuard) {
     return shopGuard;
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain,
+    feature: "META_CAMPAIGNS",
+  });
+  if (planGuard) {
+    return planGuard;
   }
 
   const shop = await prisma.shop.findUnique({
@@ -73,6 +82,14 @@ export async function POST(request: Request) {
   const roleGuard = requireAuthorizedShopRole(auth, shopDomain, ShopRole.ADMIN);
   if (roleGuard) {
     return roleGuard;
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain,
+    feature: "META_CAMPAIGNS",
+  });
+  if (planGuard) {
+    return planGuard;
   }
 
   const shop = await prisma.shop.findUnique({

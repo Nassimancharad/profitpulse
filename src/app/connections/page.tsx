@@ -54,6 +54,10 @@ function mapStatus(shopify?: string, meta?: string, auth?: string, authError?: s
       disconnected: { tone: "success", message: "Meta ad accounts disconnected." },
       missing_shop: { tone: "error", message: "Missing shop domain for Meta disconnect." },
       not_found: { tone: "error", message: "Shop not found for Meta disconnect." },
+      plan_upgrade_required: {
+        tone: "warning",
+        message: "Upgrade to Premium to manage Meta connections.",
+      },
     };
     return metaMap[meta] ?? { tone: "warning", message: "Meta action completed." };
   }

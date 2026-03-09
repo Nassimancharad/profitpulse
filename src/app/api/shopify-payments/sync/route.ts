@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ShopRole } from "@prisma/client";
 import { syncShopifyPayments } from "@/ingestion";
 import { authenticateApiRequest, requireAuthorizedShopRole, resolveRequestedShop } from "@/lib/auth";
+import { requireFeatureForShop } from "@/lib/planGate";
 
 export async function POST(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -40,6 +41,14 @@ export async function POST(request: Request) {
   const roleGuard = requireAuthorizedShopRole(auth, resolvedShop.shopDomain, ShopRole.ADMIN);
   if (roleGuard) {
     return roleGuard;
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain: resolvedShop.shopDomain,
+    feature: "SHOPIFY_PAYMENTS_SYNC",
+  });
+  if (planGuard) {
+    return planGuard;
   }
 
   const result = await syncShopifyPayments({

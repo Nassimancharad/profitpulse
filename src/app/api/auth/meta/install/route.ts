@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { ShopRole } from "@prisma/client";
 import { buildMetaAuthUrl } from "@/lib/meta";
 import { authenticateApiRequest, isAuthorizedForShopRole } from "@/lib/auth";
+import { requireFeatureForShop } from "@/lib/planGate";
 
 export async function GET(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -18,6 +19,14 @@ export async function GET(request: Request) {
   }
   if (!isAuthorizedForShopRole(auth, shop, ShopRole.ADMIN)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain: shop,
+    feature: "META_CONNECTIONS",
+  });
+  if (planGuard) {
+    return planGuard;
   }
 
   const secret = process.env.META_APP_SECRET;

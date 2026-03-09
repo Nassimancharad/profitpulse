@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { authenticateApiRequest, isAuthorizedForShopRole } from "@/lib/auth";
+import { requireFeatureForShop } from "@/lib/planGate";
 
 export async function POST(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -20,6 +21,14 @@ export async function POST(request: Request) {
   }
   if (!isAuthorizedForShopRole(auth, shopDomain, ShopRole.ADMIN)) {
     return NextResponse.redirect(`${appBase}/connections?meta=forbidden`);
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain,
+    feature: "META_CONNECTIONS",
+  });
+  if (planGuard) {
+    return NextResponse.redirect(`${appBase}/connections?meta=plan_upgrade_required`);
   }
 
   const shop = await prisma.shop.findUnique({
