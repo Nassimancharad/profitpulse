@@ -20,13 +20,15 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
   const [syncStatus, setSyncStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [showList, setShowList] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const toggle = async (campaignId: string) => {
     if (!canManage) return;
     const isLinked = selected.includes(campaignId);
     setBusyId(campaignId);
+    setErrorMessage(null);
     try {
-      await fetch("/api/campaign-products", {
+      const res = await fetch("/api/campaign-products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -35,6 +37,21 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
           action: isLinked ? "remove" : "add",
         }),
       });
+
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string; code?: string } | null;
+        const fallback = isLinked
+          ? "Could not unlink campaign."
+          : "Could not link campaign.";
+        const message = payload?.code === "PLAN_UPGRADE_REQUIRED"
+          ? "Upgrade to Premium to manage campaign links."
+          : payload?.code === "PLAN_INACTIVE"
+            ? "Plan inactive. Reactivate your subscription to manage campaign links."
+            : payload?.error ?? fallback;
+        setErrorMessage(message);
+        return;
+      }
+
       setSelected((prev) =>
         isLinked ? prev.filter((id) => id !== campaignId) : [...prev, campaignId],
       );
@@ -146,6 +163,11 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
           Load campaigns to link them to this product.
         </div>
       )}
+      {errorMessage ? (
+        <div className="glass-inset mt-3 rounded-xl border border-amber-300/60 bg-amber-100/60 px-3 py-2 text-xs text-amber-700">
+          {errorMessage}
+        </div>
+      ) : null}
       <LinkedSummary campaigns={campaigns} selected={selected} />
       {!canManage ? (
         <div className="glass-inset mt-3 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-3 py-2 text-xs text-[color:var(--pp-muted)]">

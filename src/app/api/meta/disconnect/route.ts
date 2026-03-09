@@ -28,7 +28,18 @@ export async function POST(request: Request) {
     feature: "META_CONNECTIONS",
   });
   if (planGuard) {
-    return NextResponse.redirect(`${appBase}/connections?meta=plan_upgrade_required`);
+    let reason = "plan_upgrade_required";
+    try {
+      const payload = (await planGuard.clone().json()) as { code?: string };
+      if (payload?.code === "PLAN_INACTIVE") {
+        reason = "plan_inactive";
+      } else if (payload?.code === "PLAN_UPGRADE_REQUIRED") {
+        reason = "plan_upgrade_required";
+      }
+    } catch {
+      // keep default reason
+    }
+    return NextResponse.redirect(`${appBase}/connections?meta=${reason}`);
   }
 
   const shop = await prisma.shop.findUnique({

@@ -58,6 +58,10 @@ function mapStatus(shopify?: string, meta?: string, auth?: string, authError?: s
         tone: "warning",
         message: "Upgrade to Premium to manage Meta connections.",
       },
+      plan_inactive: {
+        tone: "warning",
+        message: "Plan inactive. Reactivate your subscription to manage Meta connections.",
+      },
     };
     return metaMap[meta] ?? { tone: "warning", message: "Meta action completed." };
   }
