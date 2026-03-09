@@ -26,7 +26,20 @@ export async function GET(request: Request) {
     feature: "META_CONNECTIONS",
   });
   if (planGuard) {
-    return planGuard;
+    let reason = "plan_upgrade_required";
+    try {
+      const payload = (await planGuard.clone().json()) as { code?: string };
+      if (payload?.code === "PLAN_INACTIVE") {
+        reason = "plan_inactive";
+      } else if (planGuard.status === 404) {
+        reason = "not_found";
+      }
+    } catch {
+      // keep default reason
+    }
+
+    const appBase = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || new URL(request.url).origin;
+    return NextResponse.redirect(`${appBase}/connections?meta=${reason}`);
   }
 
   const secret = process.env.META_APP_SECRET;

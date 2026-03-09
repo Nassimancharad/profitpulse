@@ -33,8 +33,8 @@ export async function POST(request: Request) {
       const payload = (await planGuard.clone().json()) as { code?: string };
       if (payload?.code === "PLAN_INACTIVE") {
         reason = "plan_inactive";
-      } else if (payload?.code === "PLAN_UPGRADE_REQUIRED") {
-        reason = "plan_upgrade_required";
+      } else if (planGuard.status === 404) {
+        reason = "not_found";
       }
     } catch {
       // keep default reason

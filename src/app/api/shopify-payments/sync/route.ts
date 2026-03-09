@@ -48,7 +48,26 @@ export async function POST(request: Request) {
     feature: "SHOPIFY_PAYMENTS_SYNC",
   });
   if (planGuard) {
-    return planGuard;
+    if (returnJson) {
+      return planGuard;
+    }
+
+    let reason = "plan_upgrade_required";
+    try {
+      const payload = (await planGuard.clone().json()) as { code?: string };
+      if (payload?.code === "PLAN_INACTIVE") {
+        reason = "plan_inactive";
+      } else if (planGuard.status === 404) {
+        reason = "not_found";
+      }
+    } catch {
+      // keep default reason
+    }
+
+    const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "");
+    const origin = appUrl ?? new URL(request.url).origin;
+    const redirectUrl = `${origin}/costs?shop=${encodeURIComponent(resolvedShop.shopDomain)}&payments=${reason}`;
+    return NextResponse.redirect(redirectUrl, 303);
   }
 
   const result = await syncShopifyPayments({
