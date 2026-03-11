@@ -78,7 +78,8 @@ export async function GET(request: Request) {
     }
 
     const appBase = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || new URL(request.url).origin;
-    return NextResponse.redirect(`${appBase}/connections?meta=${reason}`);
+    const params = new URLSearchParams({ meta: reason, shop: shopDomain });
+    return NextResponse.redirect(`${appBase}/connections?${params.toString()}`);
   }
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });
