@@ -33,19 +33,19 @@ export async function POST(request: Request) {
       return roleGuard;
     }
 
-    if (action === "remove") {
-      await prisma.campaignProduct.deleteMany({
-        where: { productId, campaignId },
-      });
-      return NextResponse.json({ ok: true, removed: true });
-    }
-
     const planGuard = await requireFeatureForShop({
       shopDomain: product.shop.shopDomain,
       feature: "CAMPAIGN_MAPPING",
     });
     if (planGuard) {
       return planGuard;
+    }
+
+    if (action === "remove") {
+      await prisma.campaignProduct.deleteMany({
+        where: { productId, campaignId },
+      });
+      return NextResponse.json({ ok: true, removed: true });
     }
 
     await prisma.campaignProduct.upsert({
