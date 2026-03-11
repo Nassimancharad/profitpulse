@@ -5,6 +5,7 @@ import {
   exchangeForLongLivedToken,
   fetchMetaAdAccounts,
 } from "@/lib/meta";
+import { requireFeatureForShop } from "@/lib/planGate";
 import { logWarn } from "@/observability";
 
 function parseState(state: string | null) {
@@ -57,6 +58,28 @@ export async function GET(request: Request) {
   const shopDomain = await verifyState(state);
   if (!shopDomain) {
     return NextResponse.json({ error: "Invalid or missing state" }, { status: 400 });
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain,
+    feature: "META_CONNECTIONS",
+  });
+  if (planGuard) {
+    let reason = "plan_upgrade_required";
+    try {
+      const payload = (await planGuard.clone().json()) as { code?: string };
+      if (payload?.code === "PLAN_INACTIVE") {
+        reason = "plan_inactive";
+      } else if (planGuard.status === 404) {
+        reason = "not_found";
+      }
+    } catch {
+      // keep default reason
+    }
+
+    const appBase = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || new URL(request.url).origin;
+    const params = new URLSearchParams({ meta: reason, shop: shopDomain });
+    return NextResponse.redirect(`${appBase}/connections?${params.toString()}`);
   }
 
   const shop = await prisma.shop.findUnique({ where: { shopDomain } });

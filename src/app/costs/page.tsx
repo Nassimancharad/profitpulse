@@ -123,6 +123,13 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
     />
   );
   const paymentsStatus = resolvedSearchParams?.payments ?? null;
+  const paymentsMessages: Record<string, string> = {
+    synced: 'Shopify Payments fees synced successfully.',
+    unsupported: 'Shopify Payments is not enabled on this store. Fee sync is unavailable.',
+    plan_upgrade_required: 'Your current plan does not include Shopify Payments sync. Upgrade your plan to continue.',
+    plan_inactive: 'Your subscription is inactive. Reactivate your plan to use Shopify Payments sync.',
+    not_found: 'No billing plan found for this store. Choose a plan to enable Shopify Payments sync.',
+  };
 
   return (
     <AppShell
@@ -203,9 +210,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
           </form>
           {paymentsStatus ? (
             <div className="glass-inset mt-3 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
-              {paymentsStatus === 'unsupported'
-                ? 'Shopify Payments is not enabled on this store. Fee sync is unavailable.'
-                : 'Shopify Payments sync failed. Please retry after confirming access.'}
+              {paymentsMessages[paymentsStatus] ?? 'Shopify Payments sync failed. Please retry after confirming access.'}
             </div>
           ) : null}
         </section>

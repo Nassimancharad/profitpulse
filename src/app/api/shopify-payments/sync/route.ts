@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ShopRole } from "@prisma/client";
 import { syncShopifyPayments } from "@/ingestion";
 import { authenticateApiRequest, requireAuthorizedShopRole, resolveRequestedShop } from "@/lib/auth";
+import { requireFeatureForShop } from "@/lib/planGate";
 
 export async function POST(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -40,6 +41,33 @@ export async function POST(request: Request) {
   const roleGuard = requireAuthorizedShopRole(auth, resolvedShop.shopDomain, ShopRole.ADMIN);
   if (roleGuard) {
     return roleGuard;
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain: resolvedShop.shopDomain,
+    feature: "SHOPIFY_PAYMENTS_SYNC",
+  });
+  if (planGuard) {
+    if (returnJson) {
+      return planGuard;
+    }
+
+    let reason = "plan_upgrade_required";
+    try {
+      const payload = (await planGuard.clone().json()) as { code?: string };
+      if (payload?.code === "PLAN_INACTIVE") {
+        reason = "plan_inactive";
+      } else if (planGuard.status === 404) {
+        reason = "not_found";
+      }
+    } catch {
+      // keep default reason
+    }
+
+    const appUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "");
+    const origin = appUrl ?? new URL(request.url).origin;
+    const redirectUrl = `${origin}/costs?shop=${encodeURIComponent(resolvedShop.shopDomain)}&payments=${reason}`;
+    return NextResponse.redirect(redirectUrl, 303);
   }
 
   const result = await syncShopifyPayments({

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { authenticateApiRequest, requireAuthorizedShopRole } from "@/lib/auth";
+import { requireFeatureForShop } from "@/lib/planGate";
 
 export async function POST(request: Request) {
   try {
@@ -30,6 +31,14 @@ export async function POST(request: Request) {
     const roleGuard = requireAuthorizedShopRole(auth, product.shop.shopDomain, ShopRole.ADMIN);
     if (roleGuard) {
       return roleGuard;
+    }
+
+    const planGuard = await requireFeatureForShop({
+      shopDomain: product.shop.shopDomain,
+      feature: "CAMPAIGN_MAPPING",
+    });
+    if (planGuard) {
+      return planGuard;
     }
 
     if (action === "remove") {

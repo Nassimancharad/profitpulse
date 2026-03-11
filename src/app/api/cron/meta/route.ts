@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { logInfo, logWarn } from "@/observability/logger";
 import { syncMetaSpend } from "@/ingestion";
+import { requireFeatureForShop } from "@/lib/planGate";
 import { parseCronMaxPages, verifyCronRequest } from "../shared";
 
 export const runtime = "nodejs";
@@ -38,6 +39,34 @@ export async function GET(request: Request) {
   const results: CronResult[] = [];
 
   for (const shop of shops) {
+    const planGuard = await requireFeatureForShop({
+      shopDomain: shop.shopDomain,
+      feature: "META_SYNC",
+    });
+
+    if (planGuard) {
+      let reason = "plan_upgrade_required";
+      if (planGuard.status === 404) {
+        reason = "not_found";
+      } else {
+        try {
+          const payload = (await planGuard.clone().json()) as { code?: string };
+          if (payload?.code === "PLAN_INACTIVE") {
+            reason = "plan_inactive";
+          }
+        } catch {
+          // keep default reason
+        }
+      }
+
+      results.push({
+        shop: shop.shopDomain,
+        status: "skipped",
+        details: `meta_sync_gated:${reason}`,
+      });
+      continue;
+    }
+
     const result = await syncMetaSpend({
       shopDomain: shop.shopDomain,
       start,

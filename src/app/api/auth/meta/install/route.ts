@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { ShopRole } from "@prisma/client";
 import { buildMetaAuthUrl } from "@/lib/meta";
 import { authenticateApiRequest, isAuthorizedForShopRole } from "@/lib/auth";
+import { requireFeatureForShop } from "@/lib/planGate";
 
 export async function GET(request: Request) {
   const auth = await authenticateApiRequest(request);
@@ -18,6 +19,28 @@ export async function GET(request: Request) {
   }
   if (!isAuthorizedForShopRole(auth, shop, ShopRole.ADMIN)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const planGuard = await requireFeatureForShop({
+    shopDomain: shop,
+    feature: "META_CONNECTIONS",
+  });
+  if (planGuard) {
+    let reason = "plan_upgrade_required";
+    try {
+      const payload = (await planGuard.clone().json()) as { code?: string };
+      if (payload?.code === "PLAN_INACTIVE") {
+        reason = "plan_inactive";
+      } else if (planGuard.status === 404) {
+        reason = "not_found";
+      }
+    } catch {
+      // keep default reason
+    }
+
+    const appBase = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") || new URL(request.url).origin;
+    const params = new URLSearchParams({ meta: reason, shop });
+    return NextResponse.redirect(`${appBase}/connections?${params.toString()}`);
   }
 
   const secret = process.env.META_APP_SECRET;
