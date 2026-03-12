@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/AppShell";
 import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
+import { listActiveStandaloneSessions } from "@/lib/appSessions";
 import { requireAppPageAuth } from "@/lib/auth";
 import { formatShopLabel } from "@/lib/shopLabel";
 import prisma from "@/lib/prisma";
@@ -8,12 +9,24 @@ import prisma from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 type PreferencesPageProps = {
-  searchParams?: Promise<{ shop?: string }>;
+  searchParams?: Promise<{ shop?: string; sessions?: string }>;
 };
 
+function formatDeviceLabel(userAgent: string | null) {
+  if (!userAgent) return "Unknown device";
+  if (userAgent.includes("iPhone")) return "iPhone";
+  if (userAgent.includes("iPad")) return "iPad";
+  if (userAgent.includes("Macintosh")) return "Mac";
+  if (userAgent.includes("Windows")) return "Windows PC";
+  if (userAgent.includes("Android")) return "Android device";
+  return "Browser session";
+}
+
 export default async function PreferencesPage({ searchParams }: PreferencesPageProps) {
-  const { authorizedShops } = await requireAppPageAuth();
+  const { authorizedShops, sessionKind, actorUserId, sessionId } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const standaloneSessions =
+    sessionKind === "standalone" && actorUserId ? await listActiveStandaloneSessions(actorUserId) : [];
   const shops = await prisma.shop.findMany({
     where: { shopDomain: { in: authorizedShops } },
     select: { id: true, shopDomain: true },
@@ -85,6 +98,16 @@ export default async function PreferencesPage({ searchParams }: PreferencesPageP
       secondaryActions={shopSelector}
     >
       <div className="space-y-6">
+        {resolvedSearchParams?.sessions === "others_revoked" ? (
+          <div className="rounded-2xl border border-emerald-300/60 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-800">
+            Other devices have been signed out.
+          </div>
+        ) : null}
+        {resolvedSearchParams?.sessions === "session_revoked" ? (
+          <div className="rounded-2xl border border-emerald-300/60 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-800">
+            Session revoked.
+          </div>
+        ) : null}
         <section className="pp-card glass-surface p-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -111,6 +134,85 @@ export default async function PreferencesPage({ searchParams }: PreferencesPageP
             </p>
           </div>
         </section>
+
+        {sessionKind === "standalone" ? (
+          <section className="pp-card glass-surface p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Signed-in devices</h3>
+                <p className="mt-1 text-sm text-[color:var(--pp-muted)]">
+                  Standalone sessions are now stored server-side, so you can revoke this device or other active devices.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <form action="/api/auth/sessions/revoke" method="POST">
+                  <input type="hidden" name="action" value="revoke_others" />
+                  <button type="submit" className="pp-btn px-3 py-2 text-sm">
+                    Sign out other devices
+                  </button>
+                </form>
+                <form action="/api/auth/sessions/revoke" method="POST">
+                  <input type="hidden" name="action" value="revoke_all" />
+                  <button type="submit" className="pp-btn px-3 py-2 text-sm text-rose-700 border-rose-300/60 bg-rose-100/60 hover:border-rose-300">
+                    Sign out all devices
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {standaloneSessions.map((appSession) => {
+                const isCurrent = appSession.id === sessionId;
+                const isRevoked = Boolean(appSession.revokedAt);
+                const isExpired = appSession.expiresAt < new Date();
+                return (
+                  <div
+                    key={appSession.id}
+                    className="flex flex-col gap-3 rounded-2xl border border-[color:var(--pp-border)] bg-white/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-[color:var(--pp-foreground)]">{formatDeviceLabel(appSession.userAgent)}</p>
+                        {isCurrent ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">Current</span>
+                        ) : null}
+                        {isRevoked ? (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Revoked</span>
+                        ) : null}
+                        {!isRevoked && isExpired ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">Expired</span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 text-sm text-[color:var(--pp-muted)]">
+                        Last active {appSession.lastSeenAt.toLocaleString("en-US")} • Expires {appSession.expiresAt.toLocaleString("en-US")}
+                      </p>
+                      <p className="mt-1 truncate text-xs text-[color:var(--pp-muted)]">
+                        {appSession.ipAddress ? `IP ${appSession.ipAddress}` : "IP unavailable"}
+                        {appSession.userAgent ? ` • ${appSession.userAgent}` : ""}
+                      </p>
+                    </div>
+                    {!isRevoked && !isExpired ? (
+                      <form action="/api/auth/sessions/revoke" method="POST">
+                        <input type="hidden" name="action" value="revoke_one" />
+                        <input type="hidden" name="sessionId" value={appSession.id} />
+                        <button
+                          type="submit"
+                          className={`pp-btn px-3 py-2 text-sm ${
+                            isCurrent
+                              ? "text-rose-700 border-rose-300/60 bg-rose-100/60 hover:border-rose-300"
+                              : ""
+                          }`}
+                        >
+                          {isCurrent ? "Sign out this device" : "Revoke device"}
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
       </div>
     </AppShell>
   );

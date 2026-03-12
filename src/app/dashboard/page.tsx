@@ -1,5 +1,4 @@
 import { AppShell } from '@/components/AppShell';
-import { ShopRole } from "@prisma/client";
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { DashboardProfitDrilldown } from '@/components/DashboardProfitDrilldown';
@@ -48,11 +47,11 @@ const numberFormatter = getNumberFormatter();
 const percentFormatter = getPercentFormatter('en-US', { maximumFractionDigits: 1 });
 
 type DashboardProps = {
-  searchParams?: Promise<{ start?: string; end?: string; shop?: string }>;
+  searchParams?: Promise<{ start?: string; end?: string; shop?: string; login?: string }>;
 };
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
-  const { authorizedShops, shopRoles } = await requireAppPageAuth();
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops: ShopOverview[] = await fetchDashboardShops(authorizedShops);
 
@@ -534,7 +533,7 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
       {activeShop ? (
         <SyncNowButton
           shopDomain={activeShop.shopDomain}
-          canManage={shopRoles.get(activeShop.shopDomain) === ShopRole.ADMIN}
+          canManage
         />
       ) : null}
       <span className="pp-badge glass-inset w-full px-3.5 py-1.5 sm:w-auto">
@@ -562,6 +561,12 @@ export default async function DashboardPage({ searchParams }: DashboardProps) {
           className="pointer-events-none absolute -left-10 top-24 h-48 w-48 rounded-full bg-[rgba(255,214,170,0.35)] blur-3xl sm:h-64 sm:w-64"
           aria-hidden
         />
+
+        {resolvedSearchParams?.login === "magic_link_success" ? (
+          <div className="rounded-2xl border border-emerald-300/60 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-800">
+            Magic link verified. Your standalone session is active.
+          </div>
+        ) : null}
 
         {setupProgress ? <SetupGuideCard progress={setupProgress} /> : null}
 

@@ -35,10 +35,12 @@ model Shop {
   expenses    Expense[]
   syncStates  SyncState[]
   memberships ShopMembership[]
+  invites     ShopInvite[]
 }
 
 enum ShopRole {
   ADMIN
+  EDITOR
   VIEWER
 }
 
@@ -51,7 +53,10 @@ model AppUser {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  memberships ShopMembership[]
+  memberships     ShopMembership[]
+  invitesSent     ShopInvite[]      @relation("ShopInviteInvitedBy")
+  magicLinkTokens MagicLinkToken[]
+  sessions        AppSession[]
 
   @@unique([provider, externalId])
 }
@@ -69,6 +74,78 @@ model ShopMembership {
   @@unique([userId, shopId])
   @@index([shopId, role])
   @@index([userId])
+}
+
+enum ShopInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+model ShopInvite {
+  id              String           @id @default(cuid())
+  shop            Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId          String
+  email           String
+  role            ShopRole         @default(VIEWER)
+  status          ShopInviteStatus @default(PENDING)
+  tokenHash       String           @unique
+  invitedBy       AppUser?         @relation("ShopInviteInvitedBy", fields: [invitedByUserId], references: [id], onDelete: SetNull)
+  invitedByUserId String?
+  acceptedAt      DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([shopId, status])
+  @@index([email, status])
+  @@unique([shopId, email, status])
+}
+
+model MagicLinkToken {
+  id               String   @id @default(cuid())
+  user             AppUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String?
+  email            String
+  tokenHash        String   @unique
+  expiresAt        DateTime
+  consumedAt       DateTime?
+  requestedFromIp  String?
+  requestedUserAgent String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([email, expiresAt])
+  @@index([userId, expiresAt])
+  @@index([expiresAt, consumedAt])
+}
+
+model AuthRateLimitEvent {
+  id        String   @id @default(cuid())
+  scope     String
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([scope, key, createdAt])
+  @@index([createdAt])
+}
+
+model AppSession {
+  id               String   @id @default(cuid())
+  user             AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  kind             String   @default("standalone")
+  ipAddress        String?
+  userAgent        String?
+  lastSeenAt       DateTime @default(now())
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([expiresAt, revokedAt])
 }
 
 model Product {

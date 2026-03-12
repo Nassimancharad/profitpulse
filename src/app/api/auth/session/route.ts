@@ -18,7 +18,9 @@ export async function GET(request: Request) {
     shop: auth.shop,
     payload: auth.payload,
     session: {
-      subjectExternalId: session.subjectExternalId,
+      subjectExternalId: session.actorExternalId,
+      actorUserId: session.actorUserId,
+      kind: session.kind,
       shops: session.shops,
       rolesByShop: session.rolesByShop,
     },

@@ -8,7 +8,7 @@ import {
   requireAuthorizedShopRole,
 } from "../src/lib/auth";
 
-test("getShopRoleForDomain defaults missing role claims to VIEWER", () => {
+test("getShopRoleForDomain keeps legacy fallback when role claims are missing", () => {
   const auth = {
     authorizedShops: new Set(["demo.myshopify.com"]),
     shopRoles: new Map<string, ShopRole>(),
@@ -18,13 +18,15 @@ test("getShopRoleForDomain defaults missing role claims to VIEWER", () => {
   assert.equal(role, ShopRole.VIEWER);
 });
 
-test("hasRequiredRole only allows ADMIN for admin-required actions", () => {
+test("hasRequiredRole follows role hierarchy including editor", () => {
   assert.equal(hasRequiredRole(ShopRole.VIEWER, ShopRole.ADMIN), false);
+  assert.equal(hasRequiredRole(ShopRole.EDITOR, ShopRole.ADMIN), false);
   assert.equal(hasRequiredRole(ShopRole.ADMIN, ShopRole.ADMIN), true);
+  assert.equal(hasRequiredRole(ShopRole.EDITOR, ShopRole.EDITOR), true);
   assert.equal(hasRequiredRole(ShopRole.VIEWER, ShopRole.VIEWER), true);
 });
 
-test("requireAuthorizedShop returns null when viewer has read access", () => {
+test("requireAuthorizedShop returns null when the user has shop access", () => {
   const auth = {
     ok: true as const,
     authorizedShops: new Set(["demo.myshopify.com"]),
@@ -35,7 +37,7 @@ test("requireAuthorizedShop returns null when viewer has read access", () => {
   assert.equal(requireAuthorizedShop(auth, "demo.myshopify.com"), null);
 });
 
-test("requireAuthorizedShopRole blocks viewer from admin operations", async () => {
+test("requireAuthorizedShopRole still enforces helper role checks", async () => {
   const auth = {
     ok: true as const,
     authorizedShops: new Set(["demo.myshopify.com"]),

@@ -17,6 +17,8 @@ SHOPIFY_API_KEY="..."
 SHOPIFY_API_SECRET="..."
 SHOPIFY_SCOPES="read_products,read_orders"
 SHOPIFY_APP_URL="https://<your-tunnel-host>"
+PP_AUTHORIZATION_MODE="shopify_full_access"
+MAGIC_LINK_DELIVERY_MODE="preview"
 ```
 
 ### Shopify CLI / tunnel
@@ -50,6 +52,27 @@ Keep this running while the tunnel forwards to `http://localhost:3000`.
 - Install URL: `https://<tunnel-host>/api/auth/shopify/install?shop=<your-dev-store>.myshopify.com`
 - Install route sets a state cookie and redirects to Shopify’s authorize page.
 - Callback: validates state + HMAC, exchanges code for token, upserts `Shop`, then redirects to `/app?shop=...`.
+
+### Access model
+- Current default: `PP_AUTHORIZATION_MODE=shopify_full_access` means anyone who can open the app for a shop in Shopify gets full access in ProfitPulse.
+- Standalone email login now uses one-time `MagicLinkToken` records tied to `AppUser(provider=email)` plus `ShopMembership`.
+- In `shopify_full_access`, Shopify sessions still get admin access for their connected shop; standalone email sessions use the stored membership role.
+- In future `PP_AUTHORIZATION_MODE=role_based`, both session types will honor `ShopMembership.role` directly.
+
+### Magic-link login
+- Login page: `/login`
+- Request endpoint: `POST /api/auth/magic-link/request`
+- Verify endpoint: `GET /auth/verify?token=...`
+- Logout: `/logout`
+- Tokens are cryptographically random, SHA-256 hashed at rest, expire after 20 minutes, and are single-use.
+- Development/default delivery mode is `MAGIC_LINK_DELIVERY_MODE=preview`, which returns the link in the UI instead of sending mail.
+- Request rate limiting is DB-backed:
+  - per email: 5 requests / 15 minutes
+  - per IP: 20 requests / 15 minutes
+  - verify attempts per IP: 30 / 15 minutes
+- Database migrations required for this flow:
+  - `20260312153000_add_magic_link_tokens`
+  - `20260312170000_add_auth_rate_limit_events`
 
 ### Available routes
 - `GET /api/auth/shopify/install` — start OAuth (requires `shop` query)

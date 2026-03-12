@@ -1,10 +1,10 @@
 import { AppShell } from '@/components/AppShell';
-import { ShopRole } from "@prisma/client";
+import { ShopInviteStatus } from "@prisma/client";
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopConnectForm } from '@/components/ShopConnectForm';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
-import { TeamMembersPanel } from '@/components/TeamMembersPanel';
+import { TeamInvitesPanel } from '@/components/TeamInvitesPanel';
 import { requireAppPageAuth } from '@/lib/auth';
 import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
@@ -16,7 +16,7 @@ type SettingsPageProps = {
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-  const { authorizedShops, shopRoles } = await requireAppPageAuth();
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops = await prisma.shop.findMany({
     where: { shopDomain: { in: authorizedShops } },
@@ -88,7 +88,25 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       </AppShell>
     );
   }
-  const canManage = shopRoles.get(shop.shopDomain) === ShopRole.ADMIN;
+  const canManage = true;
+  const invites = await prisma.shopInvite.findMany({
+    where: {
+      shopId: shop.id,
+      status: {
+        in: [ShopInviteStatus.PENDING, ShopInviteStatus.ACCEPTED],
+      },
+    },
+    orderBy: [{ createdAt: "desc" }],
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      status: true,
+      expiresAt: true,
+      acceptedAt: true,
+      createdAt: true,
+    },
+  });
 
   const overflowActions = (
     <OverflowMenu
@@ -134,7 +152,27 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </div>
         </section>
 
-        <TeamMembersPanel shopDomain={shop.shopDomain} canManage={canManage} />
+        <section className="pp-card glass-surface p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--pp-muted)]">Access</p>
+              <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Hybrid access foundation</h3>
+              <p className="text-sm text-[color:var(--pp-muted)]">
+                ProfitPulse still uses Shopify access today, while invite records and future shop roles are now stored for the standalone account rollout.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <TeamInvitesPanel
+          shopDomain={shop.shopDomain}
+          initialInvites={invites.map((invite) => ({
+            ...invite,
+            expiresAt: invite.expiresAt.toISOString(),
+            acceptedAt: invite.acceptedAt?.toISOString() ?? null,
+            createdAt: invite.createdAt.toISOString(),
+          }))}
+        />
 
       </div>
     </AppShell>
