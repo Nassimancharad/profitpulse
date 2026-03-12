@@ -2,7 +2,7 @@
 
 client_id = "4c5aa67089f06bd8a3c78b5b27aeff58"
 name = "ProfitPulse"
-application_url = "https://stockings-studied-possession-stakeholders.trycloudflare.com"
+application_url = "https://app.celaree.com"
 embedded = true
 
 [build]
@@ -14,11 +14,12 @@ api_version = "2025-10"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_orders,read_products"
+scopes = "read_orders,read_products,read_shopify_payments_payouts"
 optional_scopes = [ "read_customers", "read_inventory" ]
 use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://stockings-studied-possession-stakeholders.trycloudflare.com/api/auth/shopify/callback",
+  "https://app.celaree.com/api/auth/shopify/callback",
+  "http://localhost:3000/api/auth/shopify/callback"
 ]

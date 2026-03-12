@@ -47,7 +47,7 @@ export function MetaSyncButton({ shopDomain, canManage = true }: Props) {
       {status === "loading" && "Syncing Meta"}
       {status === "success" && "Meta synced"}
       {status === "error" && "Retry Meta sync"}
-      {status === "idle" && (canManage ? "Sync Meta" : "View only")}
+      {status === "idle" && (canManage ? "Sync Meta" : "Unavailable")}
     </button>
   );
 }

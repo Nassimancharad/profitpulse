@@ -147,11 +147,6 @@ export function ProductCampaignLinker({ productId, linkedCampaigns, campaigns, s
         </div>
       )}
       <LinkedSummary campaigns={campaigns} selected={selected} />
-      {!canManage ? (
-        <div className="glass-inset mt-3 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-3 py-2 text-xs text-[color:var(--pp-muted)]">
-          Your role is viewer. Campaign linking requires admin access.
-        </div>
-      ) : null}
     </div>
   );
 }

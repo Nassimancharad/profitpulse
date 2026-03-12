@@ -110,7 +110,7 @@ export function ProductCostEditor({ productId, initialCost, shopDomain, canManag
             {status === "saving" && "Saving..."}
             {status === "saved" && "Saved"}
             {status === "error" && "Retry"}
-            {status === "idle" && (canManage ? "Save default" : "View only")}
+            {status === "idle" && (canManage ? "Save default" : "Unavailable")}
           </button>
         </div>
         {status === "error" ? (
@@ -155,17 +155,12 @@ export function ProductCostEditor({ productId, initialCost, shopDomain, canManag
                     {currentStatus === "saving" && "Saving..."}
                     {currentStatus === "saved" && "Saved"}
                     {currentStatus === "error" && "Retry"}
-                    {currentStatus === "idle" && (canManage ? "Save" : "View only")}
+                    {currentStatus === "idle" && (canManage ? "Save" : "Unavailable")}
                   </button>
                 </div>
               </div>
             );
           })}
-        </div>
-      ) : null}
-      {!canManage ? (
-        <div className="glass-inset rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
-          Your role is viewer. Cost edits require admin access.
         </div>
       ) : null}
     </div>

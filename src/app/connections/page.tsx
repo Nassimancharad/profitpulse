@@ -3,7 +3,6 @@ import { MetaSyncButton } from "@/components/MetaSyncButton";
 import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { SyncNowButton } from "@/components/SyncNowButton";
-import { ShopRole } from "@prisma/client";
 import { getAuthorizedSessionFromCookie } from "@/lib/auth";
 import { formatShopLabel } from "@/lib/shopLabel";
 import prisma from "@/lib/prisma";
@@ -70,9 +69,6 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const session = await getAuthorizedSessionFromCookie();
   const authorizedShops = session.shops;
-  const shopRoles = new Map(
-    authorizedShops.map((shop) => [shop, session.rolesByShop[shop] ?? ShopRole.VIEWER] as const),
-  );
 
   if (!authorizedShops.length) {
     return (
@@ -195,7 +191,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
     resolvedSearchParams?.auth,
     resolvedSearchParams?.auth_error,
   );
-  const canManage = shopRoles.get(shop.shopDomain) === ShopRole.ADMIN;
+  const canManage = true;
   const shopSelector = (
     <ShopSwitcher
       shops={shops}
@@ -233,7 +229,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
                   disabled={!canManage}
                   className="pp-btn px-3.5 py-2 text-sm text-rose-600 border-rose-300/60 bg-rose-200/40 hover:border-rose-300"
                 >
-                  {canManage ? "Disconnect" : "View only"}
+                  {canManage ? "Disconnect" : "Unavailable"}
                 </button>
               </form>
             </div>
@@ -254,7 +250,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
                 href={`/api/auth/meta/install?shop=${encodeURIComponent(shop.shopDomain)}`}
                 className={`pp-btn pp-btn-primary px-3.5 py-2 text-sm ${!canManage ? "pointer-events-none opacity-60" : ""}`}
               >
-                {canManage ? "Connect Meta" : "View only"}
+                {canManage ? "Connect Meta" : "Unavailable"}
               </a>
               <MetaSyncButton shopDomain={shop.shopDomain} canManage={canManage} />
               <form action={`/api/meta/disconnect?shop=${encodeURIComponent(shop.shopDomain)}`} method="POST">
@@ -263,7 +259,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
                   disabled={!canManage}
                   className="pp-btn pp-btn-secondary glass-inset px-3.5 py-2 text-sm"
                 >
-                  {canManage ? "Disconnect Meta" : "View only"}
+                  {canManage ? "Disconnect Meta" : "Unavailable"}
                 </button>
               </form>
             </div>
@@ -287,12 +283,6 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
             )}
           </div>
         </section>
-        {!canManage ? (
-          <div className="glass-inset rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
-            Your role is viewer. Connection and sync actions require admin access.
-          </div>
-        ) : null}
-
       </div>
     </AppShell>
   );

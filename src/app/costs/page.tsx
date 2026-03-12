@@ -1,5 +1,4 @@
 import { AppShell } from '@/components/AppShell';
-import { ShopRole } from "@prisma/client";
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
@@ -26,7 +25,7 @@ type ExpenseRecord = {
 };
 
 export default async function CostsPage({ searchParams }: CostsPageProps) {
-  const { authorizedShops, shopRoles } = await requireAppPageAuth();
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops: ShopRef[] = await prisma.shop.findMany({
     where: { shopDomain: { in: authorizedShops } },
@@ -111,10 +110,10 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
   const overflowActions = (
     <OverflowMenu
       shopDomain={shop.shopDomain}
-      canManage={shopRoles.get(shop.shopDomain) === ShopRole.ADMIN}
+      canManage
     />
   );
-  const canManage = shopRoles.get(shop.shopDomain) === ShopRole.ADMIN;
+  const canManage = true;
   const shopSelector = (
     <ShopSwitcher
       shops={shops}
@@ -188,7 +187,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 disabled={!canManage}
                 className="pp-btn pp-btn-primary w-full px-4 py-2 text-sm"
               >
-                {canManage ? "Save fees" : "View only"}
+                {canManage ? "Save fees" : "Unavailable"}
               </button>
             </div>
           </form>
@@ -198,7 +197,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
               disabled={!canManage}
               className="pp-btn pp-btn-secondary glass-inset px-4 py-2 text-xs"
             >
-              {canManage ? "Sync Shopify Payments fees" : "View only"}
+              {canManage ? "Sync Shopify Payments fees" : "Unavailable"}
             </button>
           </form>
           {paymentsStatus ? (
@@ -283,7 +282,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                 disabled={!canManage}
                 className="pp-btn pp-btn-primary w-full px-4 py-2 text-sm"
               >
-                {canManage ? "Add expense" : "View only"}
+                {canManage ? "Add expense" : "Unavailable"}
               </button>
             </div>
           </form>
@@ -314,18 +313,13 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
                       disabled={!canManage}
                       className="pp-btn pp-btn-secondary glass-inset px-3 py-2 text-xs"
                     >
-                      {canManage ? "Remove" : "View only"}
+                      {canManage ? "Remove" : "Unavailable"}
                     </button>
                   </form>
                 </div>
               ))
             )}
           </div>
-          {!canManage ? (
-            <div className="glass-inset mt-4 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
-              Your role is viewer. Cost and expense updates require admin access.
-            </div>
-          ) : null}
         </section>
       </div>
     </AppShell>
