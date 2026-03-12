@@ -51,7 +51,7 @@ export function ShopifyPaymentsSyncButton({ shopDomain, canManage = true }: Prop
       {status === "loading" && "Syncing fees"}
       {status === "success" && "Fees synced"}
       {status === "error" && "Retry fees"}
-      {status === "idle" && (canManage ? "Sync fees" : "View only")}
+      {status === "idle" && (canManage ? "Sync fees" : "Unavailable")}
     </button>
   );
 }

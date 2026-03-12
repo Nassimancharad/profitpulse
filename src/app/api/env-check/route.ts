@@ -62,6 +62,7 @@ export async function GET(request: Request) {
       PGSSLMODE: maskPresence(process.env.PGSSLMODE),
       PGSSLROOTCERT: maskPresence(process.env.PGSSLROOTCERT),
       DATABASE_SSL_INSECURE: maskPresence(process.env.DATABASE_SSL_INSECURE),
+      MAGIC_LINK_DELIVERY_MODE: process.env.MAGIC_LINK_DELIVERY_MODE ?? null,
     },
     db: {
       host: databaseHost,

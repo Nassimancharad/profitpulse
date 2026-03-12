@@ -114,6 +114,14 @@ export function AppShell({
                 );
               })}
             </nav>
+            <div className="mt-auto px-2 pt-6">
+              <Link
+                href="/logout"
+                className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-[color:var(--pp-muted)] transition hover:bg-white/60"
+              >
+                <span>Logout</span>
+              </Link>
+            </div>
           </aside>
         ) : null}
 
@@ -235,6 +243,13 @@ function MobileNav({ open, onClose, activeHref }: MobileNavProps) {
               </Link>
             );
           })}
+          <Link
+            href="/logout"
+            onClick={onClose}
+            className="mt-3 flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-[color:var(--pp-muted)] transition hover:bg-white/60"
+          >
+            <span>Logout</span>
+          </Link>
         </nav>
       </div>
     </>

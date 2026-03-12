@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { AppShell } from '@/components/AppShell';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
-import { ShopRole } from "@prisma/client";
 import prisma from '@/lib/prisma';
 import { requireAppPageAuth } from '@/lib/auth';
 import { formatShopLabel } from '@/lib/shopLabel';
@@ -24,7 +23,7 @@ type ShopOverview = {
 };
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { authorizedShops, shopRoles } = await requireAppPageAuth();
+  const { authorizedShops } = await requireAppPageAuth();
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const shops: ShopOverview[] = await (async () => {
     try {
@@ -128,7 +127,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const overflowActions = activeShop ? (
     <OverflowMenu
       shopDomain={activeShop.shopDomain}
-      canManage={shopRoles.get(activeShop.shopDomain) === ShopRole.ADMIN}
+      canManage
     />
   ) : undefined;
   const shopSelector = (

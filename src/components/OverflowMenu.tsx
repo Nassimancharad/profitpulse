@@ -70,7 +70,7 @@ export function OverflowMenu({ shopDomain, canManage = true }: OverflowMenuProps
         />
       </svg>
       <span className="text-xs font-semibold uppercase tracking-wide text-[color:var(--pp-muted)]">
-        {status === "loading" ? "Syncing" : status === "done" ? "Synced" : canManage ? "Sync" : "View only"}
+        {status === "loading" ? "Syncing" : status === "done" ? "Synced" : canManage ? "Sync" : "Unavailable"}
       </span>
     </button>
   );

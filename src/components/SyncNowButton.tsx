@@ -72,7 +72,7 @@ export function SyncNowButton({ shopDomain, size = "md", canManage = true }: Pro
       {status === "loading" && "Syncing"}
       {status === "success" && "Synced"}
       {status === "error" && "Retry sync"}
-      {status === "idle" && (canManage ? "Sync" : "View only")}
+      {status === "idle" && (canManage ? "Sync" : "Unavailable")}
     </button>
   );
 }
