@@ -6,10 +6,11 @@ export const metadata: Metadata = {
   description: "ProfitPulse — profitability and ads analytics for Shopify merchants.",
   icons: {
     icon: [
+      { url: "/favicon.ico", sizes: "any" },
       { url: "/favicon.svg", type: "image/svg+xml" },
     ],
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    shortcut: "/favicon.ico",
+    apple: "/icon.svg",
   },
 };
 

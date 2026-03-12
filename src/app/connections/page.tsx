@@ -77,16 +77,29 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const session = await getAuthorizedSessionFromCookie();
   const authorizedShops = session.shops;
+  const banner = mapStatus(
+    resolvedSearchParams?.shopify,
+    resolvedSearchParams?.meta,
+    resolvedSearchParams?.auth,
+    resolvedSearchParams?.auth_error,
+  );
 
   if (!authorizedShops.length) {
     return (
       <AppShell title="Connections" periodLabel="—" shopLabel="No shop">
-        <div className="pp-card glass-surface p-6">
-          <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connect your first store</h2>
-          <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
-            Install the app in Shopify to start syncing orders and costs.
-          </p>
-          <ShopConnectForm />
+        <div className="space-y-6">
+          {banner ? (
+            <div className={`pp-card glass-inset rounded-2xl border px-4 py-3 text-sm ${bannerClasses(banner.tone)}`}>
+              {banner.message}
+            </div>
+          ) : null}
+          <div className="pp-card glass-surface p-6">
+            <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connect your first store</h2>
+            <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
+              Install the app in Shopify to start syncing orders and costs.
+            </p>
+            <ShopConnectForm />
+          </div>
         </div>
       </AppShell>
     );
@@ -101,12 +114,19 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
   if (!shops.length) {
     return (
       <AppShell title="Connections" periodLabel="—" shopLabel="No shop">
-        <div className="pp-card glass-surface p-6">
-          <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connect your first store</h2>
-          <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
-            Install the app in Shopify to start syncing orders and costs.
-          </p>
-          <ShopConnectForm />
+        <div className="space-y-6">
+          {banner ? (
+            <div className={`pp-card glass-inset rounded-2xl border px-4 py-3 text-sm ${bannerClasses(banner.tone)}`}>
+              {banner.message}
+            </div>
+          ) : null}
+          <div className="pp-card glass-surface p-6">
+            <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connect your first store</h2>
+            <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
+              Install the app in Shopify to start syncing orders and costs.
+            </p>
+            <ShopConnectForm />
+          </div>
         </div>
       </AppShell>
     );
@@ -193,12 +213,6 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
         year: "numeric",
       })
     : "—";
-  const banner = mapStatus(
-    resolvedSearchParams?.shopify,
-    resolvedSearchParams?.meta,
-    resolvedSearchParams?.auth,
-    resolvedSearchParams?.auth_error,
-  );
   const canManage = true;
   const shopSelector = (
     <ShopSwitcher
