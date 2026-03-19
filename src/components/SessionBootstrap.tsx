@@ -2,19 +2,26 @@
 
 import createApp from "@shopify/app-bridge";
 import { getSessionToken } from "@shopify/app-bridge-utils";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
 export function SessionBootstrap() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   useEffect(() => {
     const apiKey = document.body?.dataset?.shopifyApiKey;
     if (!apiKey) {
       return;
     }
 
-    const host = new URLSearchParams(window.location.search).get("host");
+    const host = searchParams.get("host");
     if (!host) {
       return;
     }
+    const shop = searchParams.get("shop");
+    const embedded = searchParams.get("embedded");
 
     let cancelled = false;
 
@@ -30,7 +37,7 @@ export function SessionBootstrap() {
           return;
         }
 
-        await fetch("/api/auth/session", {
+        const response = await fetch("/api/auth/session", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -38,6 +45,19 @@ export function SessionBootstrap() {
           },
           cache: "no-store",
         });
+
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        if (pathname === "/connections") {
+          const params = new URLSearchParams();
+          if (shop) params.set("shop", shop);
+          if (host) params.set("host", host);
+          if (embedded) params.set("embedded", embedded);
+          const query = params.toString();
+          router.replace(query ? `/dashboard?${query}` : "/dashboard");
+        }
       } catch (error) {
         // Avoid hard failures in mixed embedded/non-embedded contexts.
         if (process.env.NODE_ENV !== "production") {
@@ -52,7 +72,7 @@ export function SessionBootstrap() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [pathname, router, searchParams]);
 
   return null;
 }

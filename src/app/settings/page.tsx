@@ -5,19 +5,19 @@ import { ShopConnectForm } from '@/components/ShopConnectForm';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { TeamInvitesPanel } from '@/components/TeamInvitesPanel';
-import { requireAppPageAuth } from '@/lib/auth';
+import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
 import { formatShopLabel } from '@/lib/shopLabel';
 import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 type SettingsPageProps = {
-  searchParams?: Promise<{ shop?: string }>;
+  searchParams?: Promise<AppPageSearchParams<{ shop?: string }>>;
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-  const { authorizedShops } = await requireAppPageAuth();
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { authorizedShops } = auth;
   const shops = await prisma.shop.findMany({
     where: { shopDomain: { in: authorizedShops } },
     select: { id: true, shopDomain: true },

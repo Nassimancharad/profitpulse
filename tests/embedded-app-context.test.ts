@@ -3,7 +3,9 @@ import { test } from "node:test";
 import {
   applyEmbeddedAppContextToSearchParams,
   isEmbeddedAppContext,
+  resolveCurrentEmbeddedAppContext,
   resolveEmbeddedAppContext,
+  resolveEmbeddedAppContextFromSearchParamsObject,
 } from "../src/lib/embeddedAppContext";
 
 test("resolveEmbeddedAppContext falls back to cookies when search params are missing", () => {
@@ -37,4 +39,28 @@ test("applyEmbeddedAppContextToSearchParams appends embedded fields", () => {
   assert.equal(params.get("shop"), "demo.myshopify.com");
   assert.equal(params.get("host"), "embedded-host");
   assert.equal(params.get("embedded"), "1");
+});
+
+test("resolveEmbeddedAppContextFromSearchParamsObject maps plain search params", () => {
+  const context = resolveEmbeddedAppContextFromSearchParamsObject({
+    host: "plain-host",
+    embedded: "1",
+  });
+
+  assert.equal(context.host, "plain-host");
+  assert.equal(context.embedded, "1");
+});
+
+test("resolveCurrentEmbeddedAppContext prefers current query values over cookies", () => {
+  const context = resolveCurrentEmbeddedAppContext({
+    searchParams: {
+      host: "query-host",
+      embedded: "1",
+    },
+    cookieHeader: "pp_embedded_host=cookie-host; pp_embedded=0",
+  });
+
+  assert.equal(context.host, "query-host");
+  assert.equal(context.embedded, "1");
+  assert.equal(isEmbeddedAppContext(context), true);
 });

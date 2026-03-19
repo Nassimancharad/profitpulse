@@ -17,7 +17,7 @@ import {
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { SyncStatusPanel } from '@/components/SyncStatusPanel';
 import { formatShopLabel } from '@/lib/shopLabel';
-import { requireAppPageAuth } from '@/lib/auth';
+import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
 import { buildSetupProgress } from '@/lib/setupProgress';
 import { inferSetupSignals } from '@/lib/setupProgressSignals';
 import { fetchDashboardRawData, fetchDashboardShops } from '@/data/dashboard';
@@ -47,12 +47,12 @@ const numberFormatter = getNumberFormatter();
 const percentFormatter = getPercentFormatter('en-US', { maximumFractionDigits: 1 });
 
 type DashboardProps = {
-  searchParams?: Promise<{ start?: string; end?: string; shop?: string; login?: string }>;
+  searchParams?: Promise<AppPageSearchParams<{ start?: string; end?: string; shop?: string; login?: string }>>;
 };
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
-  const { authorizedShops } = await requireAppPageAuth();
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { authorizedShops } = auth;
   const shops: ShopOverview[] = await fetchDashboardShops(authorizedShops);
 
   if (!shops.length) {

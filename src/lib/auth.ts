@@ -2,10 +2,7 @@ import { ShopRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
-import {
-  EMBEDDED_APP_FLAG_COOKIE,
-  EMBEDDED_APP_HOST_COOKIE,
-} from "@/lib/embeddedAppContext";
+import { resolveCurrentEmbeddedAppContext, type EmbeddedAppSearchParams } from "@/lib/embeddedAppContext";
 import { authenticateShopifyRequest } from "@/lib/shopifySession";
 import { resolveSessionDataForProviderIdentity, resolveSessionDataForUserId, resolveUserSessionDataForToken } from "@/lib/authIdentity";
 import { clearSignedSessionCookie, getSignedSessionPayloadFromCookieHeader, setSignedSessionCookie } from "@/lib/authCookie";
@@ -227,15 +224,30 @@ export async function clearAuthorizedShopsCookie() {
   await clearSignedSessionCookie(resolveSessionCookiePolicy());
 }
 
-export async function requireAppPageAuth() {
+type AppPageAuthSearchParams =
+  | Promise<(EmbeddedAppSearchParams & Record<string, string | undefined>)>
+  | (EmbeddedAppSearchParams & Record<string, string | undefined>)
+  | undefined;
+
+export async function requireAppPageAuth(input?: {
+  searchParams?: AppPageAuthSearchParams;
+}) {
   const session = await getAuthorizedSessionFromCookie();
   const authorizedShops = session.shops;
   if (!authorizedShops.length) {
+    const resolvedSearchParams = input?.searchParams ? await input.searchParams : undefined;
     const cookieStore = await cookies();
+    const embeddedContext = resolveCurrentEmbeddedAppContext({
+      searchParams: resolvedSearchParams,
+      cookieHeader: cookieStore
+        .getAll()
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join("; "),
+    });
     redirect(
       resolveUnauthenticatedAppPageDestination({
-        embedded: cookieStore.get(EMBEDDED_APP_FLAG_COOKIE)?.value ?? null,
-        host: cookieStore.get(EMBEDDED_APP_HOST_COOKIE)?.value ?? null,
+        embedded: embeddedContext.embedded,
+        host: embeddedContext.host,
       }),
     );
   }

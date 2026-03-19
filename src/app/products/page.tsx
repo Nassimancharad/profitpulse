@@ -3,7 +3,7 @@ import { AppShell } from '@/components/AppShell';
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import prisma from '@/lib/prisma';
-import { requireAppPageAuth } from '@/lib/auth';
+import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
 import { formatShopLabel } from '@/lib/shopLabel';
 import { getCurrencyFormatter, getSharedCurrency, normalizeCurrencyCode } from '@/lib/currency';
 import { computeProductProfitByProductId } from '@/domain/profit-engine';
@@ -11,7 +11,7 @@ import { computeProductProfitByProductId } from '@/domain/profit-engine';
 export const dynamic = 'force-dynamic';
 
 type ProductsPageProps = {
-  searchParams?: Promise<{ start?: string; end?: string; shop?: string; q?: string }>;
+  searchParams?: Promise<AppPageSearchParams<{ start?: string; end?: string; shop?: string; q?: string }>>;
 };
 
 type ShopOverview = {
@@ -23,8 +23,8 @@ type ShopOverview = {
 };
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { authorizedShops } = await requireAppPageAuth();
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { authorizedShops } = auth;
   const shops: ShopOverview[] = await (async () => {
     try {
       return await prisma.shop.findMany({

@@ -1,7 +1,7 @@
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireAppPageAuth } from '@/lib/auth';
+import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
 import { AppShell } from '@/components/AppShell';
 import { TimeRangeSelector } from '@/components/TimeRangeSelector';
 import { OverflowMenu } from '@/components/OverflowMenu';
@@ -16,13 +16,13 @@ export const dynamic = 'force-dynamic';
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ start?: string; end?: string }>;
+  searchParams?: Promise<AppPageSearchParams<{ start?: string; end?: string }>>;
 };
 
 export default async function ProductDetailPage({ params, searchParams }: PageProps) {
-  const { authorizedShopSet } = await requireAppPageAuth();
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { authorizedShopSet } = auth;
   const { id: productId } = await params;
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   if (!productId) {
     notFound();

@@ -2,14 +2,14 @@ import { AppShell } from "@/components/AppShell";
 import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { listActiveStandaloneSessions } from "@/lib/appSessions";
-import { requireAppPageAuth } from "@/lib/auth";
+import { resolveAppPageAuth, type AppPageSearchParams } from "@/lib/appPageAuth";
 import { formatShopLabel } from "@/lib/shopLabel";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 type PreferencesPageProps = {
-  searchParams?: Promise<{ shop?: string; sessions?: string }>;
+  searchParams?: Promise<AppPageSearchParams<{ shop?: string; sessions?: string }>>;
 };
 
 function formatDeviceLabel(userAgent: string | null) {
@@ -23,8 +23,8 @@ function formatDeviceLabel(userAgent: string | null) {
 }
 
 export default async function PreferencesPage({ searchParams }: PreferencesPageProps) {
-  const { authorizedShops, sessionKind, actorUserId, sessionId } = await requireAppPageAuth();
-  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { authorizedShops, sessionKind, actorUserId, sessionId } = auth;
   const standaloneSessions =
     sessionKind === "standalone" && actorUserId ? await listActiveStandaloneSessions(actorUserId) : [];
   const shops = await prisma.shop.findMany({

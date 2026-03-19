@@ -1,14 +1,14 @@
-import { requireAppPageAuth } from "@/lib/auth";
+import { resolveAppPageAuth, type AppPageSearchParams } from "@/lib/appPageAuth";
 
 type AppPageProps = {
-  searchParams: {
+  searchParams: Promise<AppPageSearchParams<{
     shop?: string;
-  };
+  }>>;
 };
 
 export default async function AppPage({ searchParams }: AppPageProps) {
-  await requireAppPageAuth();
-  const shop = searchParams.shop || "unknown-shop";
+  const { searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const shop = resolvedSearchParams?.shop || "unknown-shop";
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 text-zinc-900">

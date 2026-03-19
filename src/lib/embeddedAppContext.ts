@@ -2,6 +2,11 @@ type ParamReader = {
   get: (name: string) => string | null;
 };
 
+export type EmbeddedAppSearchParams = {
+  host?: string;
+  embedded?: string;
+};
+
 export const EMBEDDED_APP_HOST_PARAM = "host";
 export const EMBEDDED_APP_FLAG_PARAM = "embedded";
 
@@ -62,6 +67,27 @@ export function resolveEmbeddedAppContext(input: {
 
 export function isEmbeddedAppContext(context: EmbeddedAppContext) {
   return context.embedded === "1" || Boolean(context.host);
+}
+
+export function resolveEmbeddedAppContextFromSearchParamsObject(
+  searchParams?: EmbeddedAppSearchParams | null,
+): EmbeddedAppContext {
+  return {
+    host: searchParams?.host ?? null,
+    embedded: searchParams?.embedded ?? null,
+  };
+}
+
+export function resolveCurrentEmbeddedAppContext(input: {
+  searchParams?: EmbeddedAppSearchParams | null;
+  cookieHeader?: string | null;
+}) {
+  const fromSearch = resolveEmbeddedAppContextFromSearchParamsObject(input.searchParams);
+  const fromCookies = getEmbeddedAppContextFromCookies(input.cookieHeader);
+  return {
+    host: fromSearch.host ?? fromCookies.host,
+    embedded: fromSearch.embedded ?? fromCookies.embedded,
+  };
 }
 
 export function applyEmbeddedAppContextToSearchParams(
