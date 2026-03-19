@@ -76,8 +76,25 @@ export function resolveSessionCookiePolicyFromEnv(input: {
 export function resolveUnauthenticatedAppPageDestination(input: {
   embedded?: string | null;
   host?: string | null;
+  shop?: string | null;
 }) {
-  return input.embedded === "1" || Boolean(input.host) ? "/connections?auth=required" : "/login";
+  if (input.embedded === "1" || Boolean(input.host)) {
+    const params = new URLSearchParams();
+    if (input.shop) {
+      params.set("shop", input.shop);
+    }
+    if (input.host) {
+      params.set("host", input.host);
+    }
+    if (input.embedded) {
+      params.set("embedded", input.embedded);
+    }
+
+    const query = params.toString();
+    return query ? `/connections?${query}` : "/connections";
+  }
+
+  return "/login";
 }
 
 export function getApiSecret() {

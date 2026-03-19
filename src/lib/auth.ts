@@ -248,6 +248,10 @@ export async function requireAppPageAuth(input?: {
       resolveUnauthenticatedAppPageDestination({
         embedded: embeddedContext.embedded,
         host: embeddedContext.host,
+        shop:
+          typeof resolvedSearchParams?.shop === "string" && resolvedSearchParams.shop.length > 0
+            ? resolvedSearchParams.shop
+            : null,
       }),
     );
   }

@@ -41,8 +41,12 @@ test("buildMagicLinkUrl uses request origin when app url is missing", () => {
 
 test("resolveUnauthenticatedAppPageDestination keeps embedded requests on connections", () => {
   assert.equal(
-    resolveUnauthenticatedAppPageDestination({ embedded: "1", host: "shopify-host" }),
-    "/connections?auth=required",
+    resolveUnauthenticatedAppPageDestination({
+      embedded: "1",
+      host: "shopify-host",
+      shop: "demo.myshopify.com",
+    }),
+    "/connections?shop=demo.myshopify.com&host=shopify-host&embedded=1",
   );
   assert.equal(resolveUnauthenticatedAppPageDestination({ embedded: null, host: null }), "/login");
 });
