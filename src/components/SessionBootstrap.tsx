@@ -30,7 +30,6 @@ export function SessionBootstrap() {
         const app = createApp({
           apiKey,
           host,
-          forceRedirect: true,
         });
         const token = await getSessionToken(app);
         if (!token || cancelled) {

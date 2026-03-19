@@ -10,7 +10,15 @@ import prisma from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 type ConnectionsPageProps = {
-  searchParams?: Promise<{ shop?: string; shopify?: string; meta?: string; auth?: string; auth_error?: string }>;
+  searchParams?: Promise<{
+    shop?: string;
+    shopify?: string;
+    meta?: string;
+    auth?: string;
+    auth_error?: string;
+    host?: string;
+    embedded?: string;
+  }>;
 };
 
 type StatusTone = "success" | "warning" | "error";
@@ -77,6 +85,12 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
   const session = await getAuthorizedSessionFromCookie();
   const authorizedShops = session.shops;
+  const isEmbeddedBootstrapAttempt =
+    !authorizedShops.length &&
+    resolvedSearchParams?.embedded === "1" &&
+    typeof resolvedSearchParams.host === "string" &&
+    resolvedSearchParams.host.length > 0 &&
+    resolvedSearchParams.auth !== "required";
   const banner = mapStatus(
     resolvedSearchParams?.shopify,
     resolvedSearchParams?.meta,
@@ -93,13 +107,23 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
               {banner.message}
             </div>
           ) : null}
-          <div className="pp-card glass-surface p-6">
-            <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connect your first store</h2>
-            <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
-              Install the app in Shopify to start syncing orders and costs.
-            </p>
-            <ShopConnectForm />
-          </div>
+          {isEmbeddedBootstrapAttempt ? (
+            <div className="pp-card glass-surface p-6">
+              <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connecting Shopify session</h2>
+              <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
+                ProfitPulse is establishing your embedded Shopify session. If this does not continue automatically,
+                reload the app from Shopify Admin once.
+              </p>
+            </div>
+          ) : (
+            <div className="pp-card glass-surface p-6">
+              <h2 className="text-xl font-semibold text-[color:var(--pp-foreground)]">Connect your first store</h2>
+              <p className="mt-2 text-sm text-[color:var(--pp-muted)]">
+                Install the app in Shopify to start syncing orders and costs.
+              </p>
+              <ShopConnectForm />
+            </div>
+          )}
         </div>
       </AppShell>
     );
