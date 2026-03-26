@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { isEmbeddedAppContext, resolveEmbeddedAppContext } from "@/lib/embeddedAppContext";
@@ -21,6 +22,20 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/preferences", label: "Preferences" },
   { href: "/settings", label: "Settings" },
 ];
+
+function withCurrentEmbedParams(href: string, searchParams: ReadonlyURLSearchParams | null) {
+  const params = new URLSearchParams();
+  const shop = searchParams?.get("shop");
+  const host = searchParams?.get("host");
+  const embedded = searchParams?.get("embedded");
+
+  if (shop) params.set("shop", shop);
+  if (host) params.set("host", host);
+  if (embedded) params.set("embedded", embedded);
+
+  const query = params.toString();
+  return query ? `${href}?${query}` : href;
+}
 
 type AppShellProps = {
   title: string;
@@ -81,6 +96,14 @@ export function AppShell({
     );
     return match?.href ?? null;
   }, [pathname]);
+  const embeddedNavItems = useMemo(
+    () =>
+      NAV_ITEMS.map((item) => ({
+        ...item,
+        resolvedHref: withCurrentEmbedParams(item.href, searchParams),
+      })),
+    [searchParams],
+  );
 
   return (
     <div className="min-h-screen w-full bg-[var(--pp-bg)] text-[color:var(--pp-foreground)]">
@@ -147,6 +170,28 @@ export function AppShell({
                 />
               </div>
             </div>
+            {isEmbedded ? (
+              <div className="border-t border-[color:var(--pp-border)]/70 px-4 pb-3 sm:px-6 lg:px-8">
+                <nav className="flex gap-2 overflow-x-auto pb-1">
+                  {embeddedNavItems.map((item) => {
+                    const isActive = activeHref === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.resolvedHref}
+                        className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                          isActive
+                            ? "glass-inset border border-[color:var(--pp-border)] bg-white/80 text-[color:var(--pp-foreground)]"
+                            : "bg-white/45 text-[color:var(--pp-muted)] hover:bg-white/60"
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+            ) : null}
           </header>
 
           <main className="flex-1 pb-24">
