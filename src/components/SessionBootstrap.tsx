@@ -42,6 +42,7 @@ export function SessionBootstrap() {
             Authorization: `Bearer ${token}`,
             accept: "application/json",
           },
+          credentials: "include",
           cache: "no-store",
         });
 

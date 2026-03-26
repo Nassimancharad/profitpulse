@@ -9,6 +9,7 @@ test("cookie policy uses lax + non-secure for localhost http", () => {
   });
   assert.equal(policy.sameSite, "lax");
   assert.equal(policy.secure, false);
+  assert.equal(policy.partitioned, false);
 });
 
 test("cookie policy uses none + secure for production https", () => {
@@ -18,4 +19,5 @@ test("cookie policy uses none + secure for production https", () => {
   });
   assert.equal(policy.sameSite, "none");
   assert.equal(policy.secure, true);
+  assert.equal(policy.partitioned, true);
 });

@@ -49,6 +49,7 @@ export type CookieSessionData = SessionData & {
 export type SessionCookiePolicy = {
   sameSite: "none" | "lax";
   secure: boolean;
+  partitioned: boolean;
 };
 
 export function resolveSessionCookiePolicyFromEnv(input: {
@@ -64,12 +65,14 @@ export function resolveSessionCookiePolicyFromEnv(input: {
     return {
       sameSite: "none",
       secure: true,
+      partitioned: true,
     };
   }
 
   return {
     sameSite: "lax",
     secure: false,
+    partitioned: false,
   };
 }
 

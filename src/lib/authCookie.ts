@@ -93,6 +93,7 @@ export async function setSignedSessionCookie(payload: AppSessionPayload, policy:
     httpOnly: true,
     sameSite: policy.sameSite,
     secure: policy.secure,
+    partitioned: policy.partitioned,
     path: "/",
     maxAge,
   });
@@ -104,6 +105,7 @@ export async function clearSignedSessionCookie(policy: SessionCookiePolicy) {
     httpOnly: true,
     sameSite: policy.sameSite,
     secure: policy.secure,
+    partitioned: policy.partitioned,
     path: "/",
     maxAge: 0,
   });
