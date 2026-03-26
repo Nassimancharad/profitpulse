@@ -61,6 +61,8 @@ test("listActiveStandaloneSessions requests standalone sessions ordered by activ
 
   await listActiveStandaloneSessions("user_1", db);
   assert.equal((received as any).where.kind, "standalone");
+  assert.equal((received as any).where.revokedAt, null);
+  assert.ok((received as any).where.expiresAt.gt instanceof Date);
   assert.deepEqual((received as any).orderBy, [{ lastSeenAt: "desc" }, { createdAt: "desc" }]);
 });
 

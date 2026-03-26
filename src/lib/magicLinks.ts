@@ -102,16 +102,29 @@ export async function createMagicLinkLogin(input: {
   const token = createMagicLinkToken();
   const tokenHash = hashMagicLinkToken(token);
   const expiresAt = defaultMagicLinkExpiry();
+  const now = new Date();
 
-  await prisma.magicLinkToken.create({
-    data: {
-      userId: user.id,
-      email: normalizedEmail,
-      tokenHash,
-      expiresAt,
-      requestedFromIp: input.requestedFromIp ?? undefined,
-      requestedUserAgent: input.requestedUserAgent ?? undefined,
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.magicLinkToken.updateMany({
+      where: {
+        userId: user.id,
+        consumedAt: null,
+      },
+      data: {
+        consumedAt: now,
+      },
+    });
+
+    await tx.magicLinkToken.create({
+      data: {
+        userId: user.id,
+        email: normalizedEmail,
+        tokenHash,
+        expiresAt,
+        requestedFromIp: input.requestedFromIp ?? undefined,
+        requestedUserAgent: input.requestedUserAgent ?? undefined,
+      },
+    });
   });
 
   return {
@@ -135,6 +148,7 @@ export async function consumeMagicLinkToken(input: {
   const tokenHash = hashMagicLinkToken(normalizedToken);
 
   const consumed = await prisma.$transaction(async (tx) => {
+    const now = new Date();
     const record = await tx.magicLinkToken.findUnique({
       where: { tokenHash },
       select: {
@@ -154,7 +168,7 @@ export async function consumeMagicLinkToken(input: {
       return { ok: false as const, status: 410, error: "This magic link was already used.", code: "used" as const };
     }
 
-    if (record.expiresAt < new Date()) {
+    if (record.expiresAt < now) {
       return { ok: false as const, status: 410, error: "This magic link has expired.", code: "expired" as const };
     }
 
@@ -163,11 +177,11 @@ export async function consumeMagicLinkToken(input: {
         id: record.id,
         consumedAt: null,
         expiresAt: {
-          gt: new Date(),
+          gt: now,
         },
       },
       data: {
-        consumedAt: new Date(),
+        consumedAt: now,
       },
     });
 

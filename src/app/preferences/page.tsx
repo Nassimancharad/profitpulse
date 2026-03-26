@@ -141,7 +141,7 @@ export default async function PreferencesPage({ searchParams }: PreferencesPageP
               <div>
                 <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Signed-in devices</h3>
                 <p className="mt-1 text-sm text-[color:var(--pp-muted)]">
-                  Standalone sessions are now stored server-side, so you can revoke this device or other active devices.
+                  Active standalone sessions are stored server-side, so you can revoke this device or other active devices.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

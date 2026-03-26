@@ -9,17 +9,18 @@ type MagicLinkDeliveryResult = {
   previewUrl: string | null;
 };
 
-function resolveDeliveryMode() {
+export function resolveMagicLinkDeliveryMode() {
   const configured = process.env.MAGIC_LINK_DELIVERY_MODE?.trim().toLowerCase();
+  if (configured === "preview") return "preview" as const;
   if (configured === "disabled") return "disabled" as const;
-  return "preview" as const;
+  return process.env.NODE_ENV === "production" ? "disabled" : "preview";
 }
 
 export async function deliverMagicLink(input: MagicLinkDeliveryInput): Promise<MagicLinkDeliveryResult> {
   void input.email;
   void input.expiresAt;
 
-  if (resolveDeliveryMode() === "disabled") {
+  if (resolveMagicLinkDeliveryMode() === "disabled") {
     return {
       mode: "disabled",
       previewUrl: null,

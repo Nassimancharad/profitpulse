@@ -53,6 +53,10 @@ export async function listActiveStandaloneSessions(userId: string, db: DbClient 
     where: {
       userId,
       kind: "standalone",
+      revokedAt: null,
+      expiresAt: {
+        gt: new Date(),
+      },
     },
     orderBy: [{ lastSeenAt: "desc" }, { createdAt: "desc" }],
     select: {
