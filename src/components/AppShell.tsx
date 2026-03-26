@@ -171,18 +171,19 @@ export function AppShell({
               </div>
             </div>
             {isEmbedded ? (
-              <div className="border-t border-[color:var(--pp-border)]/70 px-4 pb-3 sm:px-6 lg:px-8">
-                <nav className="flex gap-2 overflow-x-auto pb-1">
+              <div className="border-t border-[color:var(--pp-border)]/70 px-4 pb-3 pt-2 sm:px-6 lg:px-8">
+                <div className="rounded-2xl border border-[color:var(--pp-border)]/80 bg-white/60 px-2 py-2 shadow-[0_14px_30px_-24px_rgba(17,18,22,0.28)] backdrop-blur">
+                <nav className="flex gap-1.5 overflow-x-auto pb-1">
                   {embeddedNavItems.map((item) => {
                     const isActive = activeHref === item.href;
                     return (
                       <Link
                         key={item.href}
                         href={item.resolvedHref}
-                        className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                        className={`whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
                           isActive
-                            ? "glass-inset border border-[color:var(--pp-border)] bg-white/80 text-[color:var(--pp-foreground)]"
-                            : "bg-white/45 text-[color:var(--pp-muted)] hover:bg-white/60"
+                            ? "border border-[color:rgba(242,122,40,0.22)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,248,241,0.92))] text-[color:var(--pp-foreground)] shadow-[0_10px_24px_-18px_rgba(242,122,40,0.7)]"
+                            : "border border-transparent bg-transparent text-[color:rgba(71,85,105,0.92)] hover:bg-white/72 hover:text-[color:var(--pp-foreground)]"
                         }`}
                       >
                         {item.label}
@@ -190,6 +191,7 @@ export function AppShell({
                     );
                   })}
                 </nav>
+                </div>
               </div>
             ) : null}
           </header>
