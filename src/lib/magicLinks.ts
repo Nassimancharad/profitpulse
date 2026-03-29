@@ -2,17 +2,47 @@ import crypto from "node:crypto";
 import { ShopRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { setStandaloneSessionCookie } from "@/lib/auth";
-import { EMAIL_USER_PROVIDER, normalizeEmailAddress } from "@/lib/userAccounts";
+import { EMAIL_USER_PROVIDER, normalizeEmailAddress, upsertUserByProviderIdentity } from "@/lib/userAccounts";
 
 const MAGIC_LINK_TTL_MINUTES = 20;
 const STANDALONE_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type UserMembership = {
+  shopId: string;
   role: ShopRole;
   shop: {
     shopDomain: string;
   };
 };
+
+type MagicLinkUserRecord = {
+  id: string;
+  email: string | null;
+  externalId: string;
+  displayName?: string | null;
+  memberships: UserMembership[];
+};
+
+function getRoleWeight(role: ShopRole) {
+  if (role === ShopRole.ADMIN) return 3;
+  if (role === ShopRole.EDITOR) return 2;
+  return 1;
+}
+
+function mergeMembershipsByShop(candidates: MagicLinkUserRecord[]) {
+  const membershipsByShop = new Map<string, UserMembership>();
+
+  for (const candidate of candidates) {
+    for (const membership of candidate.memberships) {
+      const existing = membershipsByShop.get(membership.shopId);
+      if (!existing || getRoleWeight(membership.role) > getRoleWeight(existing.role)) {
+        membershipsByShop.set(membership.shopId, membership);
+      }
+    }
+  }
+
+  return Array.from(membershipsByShop.values());
+}
 
 function normalizeShopDomain(shop: string | null | undefined): string | null {
   if (!shop) return null;
@@ -54,6 +84,104 @@ function defaultStandaloneSessionExpiry(now = new Date()) {
   return new Date(now.getTime() + STANDALONE_SESSION_TTL_MS);
 }
 
+async function findMagicLinkUserByEmail(
+  normalizedEmail: string,
+  db: typeof prisma = prisma,
+): Promise<MagicLinkUserRecord | null> {
+  return db.appUser.findUnique({
+    where: {
+      provider_externalId: {
+        provider: EMAIL_USER_PROVIDER,
+        externalId: normalizedEmail,
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+      externalId: true,
+      displayName: true,
+      memberships: {
+        select: {
+          shopId: true,
+          role: true,
+          shop: { select: { shopDomain: true } },
+        },
+      },
+    },
+  });
+}
+
+export async function resolveMagicLinkUser(
+  normalizedEmail: string,
+  db: typeof prisma = prisma,
+): Promise<MagicLinkUserRecord | null> {
+  const existingEmailUser = await findMagicLinkUserByEmail(normalizedEmail, db);
+  if (existingEmailUser?.memberships.length) {
+    return existingEmailUser;
+  }
+
+  const candidateUsers = await db.appUser.findMany({
+    where: {
+      email: normalizedEmail,
+      memberships: {
+        some: {},
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+      externalId: true,
+      displayName: true,
+      memberships: {
+        select: {
+          shopId: true,
+          role: true,
+          shop: { select: { shopDomain: true } },
+        },
+      },
+    },
+  });
+
+  if (!candidateUsers.length) {
+    return existingEmailUser;
+  }
+
+  const mergedMemberships = mergeMembershipsByShop(candidateUsers);
+  const preferredDisplayName =
+    candidateUsers.find((candidate) => candidate.displayName?.trim())?.displayName ?? normalizedEmail;
+
+  return db.$transaction(async (tx) => {
+    const emailUser = await upsertUserByProviderIdentity({
+      db: tx,
+      provider: EMAIL_USER_PROVIDER,
+      externalId: normalizedEmail,
+      email: normalizedEmail,
+      displayName: preferredDisplayName,
+    });
+
+    for (const membership of mergedMemberships) {
+      await tx.shopMembership.upsert({
+        where: {
+          userId_shopId: {
+            userId: emailUser.id,
+            shopId: membership.shopId,
+          },
+        },
+        create: {
+          userId: emailUser.id,
+          shopId: membership.shopId,
+          role: membership.role,
+        },
+        update: {
+          role: membership.role,
+        },
+      });
+    }
+
+    return findMagicLinkUserByEmail(normalizedEmail, tx as typeof prisma);
+  });
+}
+
 export function buildMagicLinkUrl(token: string, origin?: string | null) {
   const configuredBaseUrl = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "");
   const baseUrl = configuredBaseUrl || origin?.replace(/\/+$/, "") || "http://localhost:3000";
@@ -71,24 +199,7 @@ export async function createMagicLinkLogin(input: {
     return { ok: false as const, status: 400, error: "Provide a valid email address." };
   }
 
-  const user = await prisma.appUser.findUnique({
-    where: {
-      provider_externalId: {
-        provider: EMAIL_USER_PROVIDER,
-        externalId: normalizedEmail,
-      },
-    },
-    select: {
-      id: true,
-      email: true,
-      memberships: {
-        select: {
-          role: true,
-          shop: { select: { shopDomain: true } },
-        },
-      },
-    },
-  });
+  const user = await resolveMagicLinkUser(normalizedEmail);
 
   if (!user || user.memberships.length === 0) {
     return {
@@ -198,6 +309,7 @@ export async function consumeMagicLinkToken(input: {
             externalId: true,
             memberships: {
               select: {
+                shopId: true,
                 role: true,
                 shop: { select: { shopDomain: true } },
               },
@@ -217,6 +329,7 @@ export async function consumeMagicLinkToken(input: {
             externalId: true,
             memberships: {
               select: {
+                shopId: true,
                 role: true,
                 shop: { select: { shopDomain: true } },
               },

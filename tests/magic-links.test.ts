@@ -5,6 +5,7 @@ import {
   createMagicLinkToken,
   defaultMagicLinkExpiry,
   hashMagicLinkToken,
+  resolveMagicLinkUser,
 } from "../src/lib/magicLinks";
 import { resolveUnauthenticatedAppPageDestination } from "../src/lib/auth";
 
@@ -49,4 +50,77 @@ test("resolveUnauthenticatedAppPageDestination keeps embedded requests on connec
     "/connections?shop=demo.myshopify.com&host=shopify-host&embedded=1",
   );
   assert.equal(resolveUnauthenticatedAppPageDestination({ embedded: null, host: null }), "/login");
+});
+
+test("resolveMagicLinkUser provisions an email login from existing shopify memberships", async () => {
+  const upsertCalls: Array<unknown> = [];
+  const membershipUpserts: Array<unknown> = [];
+
+  const tx = {
+    appUser: {
+      async findUnique() {
+        return {
+          id: "email_user_1",
+          email: "user@example.com",
+          externalId: "user@example.com",
+          displayName: "User Example",
+          memberships: [
+            {
+              shopId: "shop_1",
+              role: "ADMIN",
+              shop: { shopDomain: "demo.myshopify.com" },
+            },
+          ],
+        };
+      },
+      async upsert(args: unknown) {
+        upsertCalls.push(args);
+        return { id: "email_user_1" };
+      },
+      async findMany() {
+        return [];
+      },
+    },
+    shopMembership: {
+      async upsert(args: unknown) {
+        membershipUpserts.push(args);
+        return {};
+      },
+    },
+  };
+
+  const db = {
+    appUser: {
+      async findUnique() {
+        return null;
+      },
+      async findMany() {
+        return [
+          {
+            id: "shopify_user_1",
+            email: "user@example.com",
+            externalId: "shopify-sub",
+            displayName: "User Example",
+            memberships: [
+              {
+                shopId: "shop_1",
+                role: "ADMIN",
+                shop: { shopDomain: "demo.myshopify.com" },
+              },
+            ],
+          },
+        ];
+      },
+    },
+    async $transaction(callback: (client: typeof tx) => Promise<unknown>) {
+      return callback(tx as typeof tx);
+    },
+  } as any;
+
+  const user = await resolveMagicLinkUser("user@example.com", db);
+
+  assert.equal(user?.id, "email_user_1");
+  assert.equal(upsertCalls.length, 1);
+  assert.equal(membershipUpserts.length, 1);
+  assert.equal((membershipUpserts[0] as any).create.role, "ADMIN");
 });
