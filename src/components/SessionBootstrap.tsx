@@ -11,6 +11,10 @@ export function SessionBootstrap() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
+    if (pathname !== "/connections") {
+      return;
+    }
+
     const apiKey = document.body?.dataset?.shopifyApiKey;
     if (!apiKey) {
       return;

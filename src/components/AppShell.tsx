@@ -180,6 +180,8 @@ export function AppShell({
                       <Link
                         key={item.href}
                         href={item.resolvedHref}
+                        prefetch
+                        scroll={false}
                         className={`whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-semibold transition ${
                           isActive
                             ? "border border-[color:rgba(242,122,40,0.22)] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(255,248,241,0.92))] text-[color:var(--pp-foreground)] shadow-[0_10px_24px_-18px_rgba(242,122,40,0.7)]"
