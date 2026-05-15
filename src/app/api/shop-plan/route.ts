@@ -1,7 +1,7 @@
 import { PlanStatus, PlanTier, ShopRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { authenticateApiRequest, requireAuthorizedShopRole } from "@/lib/auth";
-import { transitionShopPlanByDomain } from "@/data/plans";
+import { isMissingPlanColumnError, transitionShopPlanByDomain } from "@/data/plans";
 
 type ShopPlanPayload = {
   shop?: string;
@@ -78,11 +78,25 @@ export async function handleShopPlanUpdate(
     );
   }
 
-  const result = await dependencies.transitionPlan({
-    shopDomain,
-    targetTier,
-    targetStatus,
-  });
+  let result;
+  try {
+    result = await dependencies.transitionPlan({
+      shopDomain,
+      targetTier,
+      targetStatus,
+    });
+  } catch (error) {
+    if (isMissingPlanColumnError(error)) {
+      return NextResponse.json(
+        {
+          error: "Plan fields are not available in the current database yet. Run the shop plan migration first.",
+          code: "PLAN_SCHEMA_MISSING",
+        },
+        { status: 503 },
+      );
+    }
+    throw error;
+  }
 
   if (!result) {
     return NextResponse.json({ error: "Shop not found" }, { status: 404 });

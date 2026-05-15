@@ -9,27 +9,63 @@ export type ShopPlan = {
   planUpdatedAt: Date;
 };
 
+export function isMissingPlanColumnError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const code = "code" in error ? error.code : undefined;
+  if (code === "P2022") {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return /column .* does not exist/i.test(message);
+}
+
 export async function getShopPlanByDomain(shopDomain: string): Promise<ShopPlan | null> {
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain },
-    select: {
-      id: true,
-      shopDomain: true,
-      planTier: true,
-      planStatus: true,
-      planUpdatedAt: true,
-    },
-  });
+  try {
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: {
+        id: true,
+        shopDomain: true,
+        planTier: true,
+        planStatus: true,
+        planUpdatedAt: true,
+      },
+    });
 
-  if (!shop) return null;
+    if (!shop) return null;
 
-  return {
-    shopId: shop.id,
-    shopDomain: shop.shopDomain,
-    planTier: shop.planTier,
-    planStatus: shop.planStatus,
-    planUpdatedAt: shop.planUpdatedAt,
-  };
+    return {
+      shopId: shop.id,
+      shopDomain: shop.shopDomain,
+      planTier: shop.planTier,
+      planStatus: shop.planStatus,
+      planUpdatedAt: shop.planUpdatedAt,
+    };
+  } catch (error) {
+    if (!isMissingPlanColumnError(error)) {
+      throw error;
+    }
+
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      select: {
+        id: true,
+        shopDomain: true,
+      },
+    });
+
+    if (!shop) return null;
+
+    return {
+      shopId: shop.id,
+      shopDomain: shop.shopDomain,
+      planTier: PlanTier.FREE,
+      planStatus: PlanStatus.ACTIVE,
+      planUpdatedAt: new Date(),
+    };
+  }
 }
 
 export async function updateShopPlan(params: {

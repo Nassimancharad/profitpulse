@@ -6,6 +6,7 @@ import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { TeamInvitesPanel } from '@/components/TeamInvitesPanel';
 import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
+import { getShopPlanByDomain } from '@/data/plans';
 import { canUseFeature } from '@/lib/planGate';
 import { PLAN_STATUS_OPTIONS, PLAN_TIER_OPTIONS, formatPlanLabel, formatPlanStatus } from '@/lib/planPresentation';
 import { formatShopLabel } from '@/lib/shopLabel';
@@ -71,9 +72,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       id: true,
       shopDomain: true,
       installedAt: true,
-      planTier: true,
-      planStatus: true,
-      planUpdatedAt: true,
     },
   });
 
@@ -87,6 +85,13 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       </AppShell>
     );
   }
+  const resolvedPlan = (await getShopPlanByDomain(shop.shopDomain)) ?? {
+    shopId: shop.id,
+    shopDomain: shop.shopDomain,
+    planTier: PLAN_TIER_OPTIONS[0],
+    planStatus: PLAN_STATUS_OPTIONS[0],
+    planUpdatedAt: new Date(),
+  };
   const canManage = true;
   const invites = await prisma.shopInvite.findMany({
     where: {
@@ -128,7 +133,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         year: 'numeric',
       })
     : '—';
-  const planUpdatedAt = new Date(shop.planUpdatedAt).toLocaleDateString('en-US', {
+  const planUpdatedAt = new Date(resolvedPlan.planUpdatedAt).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -144,8 +149,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       label: 'Shopify Payments fee sync',
       detail: 'Requires Standard or Premium.',
       enabled: canUseFeature({
-        planTier: shop.planTier,
-        planStatus: shop.planStatus,
+        planTier: resolvedPlan.planTier,
+        planStatus: resolvedPlan.planStatus,
         feature: 'SHOPIFY_PAYMENTS_SYNC',
       }).ok,
     },
@@ -153,8 +158,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       label: 'Meta connections, sync, and campaign mapping',
       detail: 'Requires Premium.',
       enabled: canUseFeature({
-        planTier: shop.planTier,
-        planStatus: shop.planStatus,
+        planTier: resolvedPlan.planTier,
+        planStatus: resolvedPlan.planStatus,
         feature: 'META_CONNECTIONS',
       }).ok,
     },
@@ -198,7 +203,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
               <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--pp-muted)]">Plan</p>
               <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Subscription access</h3>
               <p className="text-sm text-[color:var(--pp-muted)]">
-                Current plan {shop.planTier.toLowerCase()} · {shop.planStatus.toLowerCase().replace('_', ' ')} · Updated {planUpdatedAt}
+                Current plan {resolvedPlan.planTier.toLowerCase()} · {resolvedPlan.planStatus.toLowerCase().replace('_', ' ')} · Updated {planUpdatedAt}
               </p>
             </div>
           </div>
@@ -210,14 +215,14 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 <input type="hidden" name="planTier" value={tier} />
                 <button
                   type="submit"
-                  disabled={shop.planTier === tier}
+                  disabled={resolvedPlan.planTier === tier}
                   className={`pp-btn px-3.5 py-2 text-sm ${
-                    shop.planTier === tier
+                    resolvedPlan.planTier === tier
                       ? 'border-[color:rgba(242,122,40,0.28)] bg-[rgba(242,122,40,0.12)] text-[color:var(--pp-foreground)]'
                       : 'pp-btn-secondary glass-inset'
                   }`}
                 >
-                  {tier === shop.planTier ? `${formatPlanLabel(tier)} current` : `Switch to ${formatPlanLabel(tier)}`}
+                  {tier === resolvedPlan.planTier ? `${formatPlanLabel(tier)} current` : `Switch to ${formatPlanLabel(tier)}`}
                 </button>
               </form>
             ))}
@@ -230,14 +235,14 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 <input type="hidden" name="planStatus" value={status} />
                 <button
                   type="submit"
-                  disabled={shop.planStatus === status}
+                  disabled={resolvedPlan.planStatus === status}
                   className={`pp-btn px-3.5 py-2 text-sm ${
-                    shop.planStatus === status
+                    resolvedPlan.planStatus === status
                       ? 'border-[color:rgba(242,122,40,0.28)] bg-[rgba(242,122,40,0.12)] text-[color:var(--pp-foreground)]'
                       : 'pp-btn-secondary glass-inset'
                   }`}
                 >
-                  {shop.planStatus === status ? `${formatPlanStatus(status)} current` : formatPlanStatus(status)}
+                  {resolvedPlan.planStatus === status ? `${formatPlanStatus(status)} current` : formatPlanStatus(status)}
                 </button>
               </form>
             ))}

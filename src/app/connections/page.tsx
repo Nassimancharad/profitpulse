@@ -3,6 +3,7 @@ import { MetaSyncButton } from "@/components/MetaSyncButton";
 import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { SyncNowButton } from "@/components/SyncNowButton";
+import { getShopPlanByDomain } from "@/data/plans";
 import { getAuthorizedSessionFromCookie } from "@/lib/auth";
 import { canUseFeature } from "@/lib/planGate";
 import { formatPlanLabel, formatPlanStatus } from "@/lib/planPresentation";
@@ -205,8 +206,6 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
       id: true,
       shopDomain: true,
       installedAt: true,
-      planTier: true,
-      planStatus: true,
       metaAdAccounts: {
         select: {
           id: true,
@@ -235,15 +234,22 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
         year: "numeric",
       })
     : "—";
+  const resolvedPlan = (await getShopPlanByDomain(shop.shopDomain)) ?? {
+    shopId: shop.id,
+    shopDomain: shop.shopDomain,
+    planTier: "FREE" as const,
+    planStatus: "ACTIVE" as const,
+    planUpdatedAt: new Date(),
+  };
   const canManage = true;
   const metaConnectionAccess = canUseFeature({
-    planTier: shop.planTier,
-    planStatus: shop.planStatus,
+    planTier: resolvedPlan.planTier,
+    planStatus: resolvedPlan.planStatus,
     feature: "META_CONNECTIONS",
   });
   const metaSyncAccess = canUseFeature({
-    planTier: shop.planTier,
-    planStatus: shop.planStatus,
+    planTier: resolvedPlan.planTier,
+    planStatus: resolvedPlan.planStatus,
     feature: "META_SYNC",
   });
   const shopSelector = (
@@ -296,7 +302,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
               <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--pp-muted)]">Meta Ads</p>
               <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Ad account connections</h3>
               <p className="text-sm text-[color:var(--pp-muted)]">
-                Connect ad accounts to sync daily spend. Current plan {formatPlanLabel(shop.planTier)} · {formatPlanStatus(shop.planStatus)}.
+                Connect ad accounts to sync daily spend. Current plan {formatPlanLabel(resolvedPlan.planTier)} · {formatPlanStatus(resolvedPlan.planStatus)}.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">

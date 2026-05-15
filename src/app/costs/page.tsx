@@ -3,6 +3,7 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
+import { getShopPlanByDomain } from '@/data/plans';
 import { canUseFeature } from '@/lib/planGate';
 import { formatPlanLabel, formatPlanStatus } from '@/lib/planPresentation';
 import { formatShopLabel } from '@/lib/shopLabel';
@@ -75,8 +76,6 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
       shopDomain: true,
       paymentFeePct: true,
       paymentFeeFixed: true,
-      planTier: true,
-      planStatus: true,
     },
   });
 
@@ -115,9 +114,16 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
     />
   );
   const paymentsStatus = resolvedSearchParams?.payments ?? null;
+  const resolvedPlan = (await getShopPlanByDomain(shop.shopDomain)) ?? {
+    shopId: shop.id,
+    shopDomain: shop.shopDomain,
+    planTier: 'FREE' as const,
+    planStatus: 'ACTIVE' as const,
+    planUpdatedAt: new Date(),
+  };
   const paymentsAccess = canUseFeature({
-    planTier: shop.planTier,
-    planStatus: shop.planStatus,
+    planTier: resolvedPlan.planTier,
+    planStatus: resolvedPlan.planStatus,
     feature: 'SHOPIFY_PAYMENTS_SYNC',
   });
   const paymentsMessages: Record<string, string> = {
@@ -156,7 +162,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
               <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--pp-muted)]">Payments</p>
               <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Processor fees</h3>
               <p className="text-sm text-[color:var(--pp-muted)]">
-                Applied to net revenue after refunds. Current plan {formatPlanLabel(shop.planTier)} · {formatPlanStatus(shop.planStatus)}.
+                Applied to net revenue after refunds. Current plan {formatPlanLabel(resolvedPlan.planTier)} · {formatPlanStatus(resolvedPlan.planStatus)}.
               </p>
             </div>
           </div>

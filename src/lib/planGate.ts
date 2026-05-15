@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PlanStatus, PlanTier } from "@prisma/client";
-import prisma from "@/lib/prisma";
+import { getShopPlanByDomain } from "@/data/plans";
 
 export type FeatureKey =
   | "SHOPIFY_PAYMENTS_SYNC"
@@ -59,10 +59,7 @@ export async function requireFeatureForShop(params: {
   shopDomain: string;
   feature: FeatureKey;
 }) {
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain: params.shopDomain },
-    select: { planTier: true, planStatus: true },
-  });
+  const shop = await getShopPlanByDomain(params.shopDomain);
 
   if (!shop) {
     return NextResponse.json({ error: "Shop not found" }, { status: 404 });
