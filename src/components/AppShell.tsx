@@ -2,46 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import {
-  applyEmbeddedAppContextToSearchParams,
   isEmbeddedAppContext,
   resolveEmbeddedAppContext,
-  type EmbeddedAppContext,
 } from "@/lib/embeddedAppContext";
+import { APP_NAV_ITEMS, buildEmbeddedAppHref, resolveActiveAppHref } from "@/lib/appNavigation";
 import { PageTopBar } from "./PageTopBar";
 import { SessionBootstrap } from "./SessionBootstrap";
-
-type NavItem = {
-  href: string;
-  label: string;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/products", label: "Products" },
-  { href: "/costs", label: "Costs" },
-  { href: "/connections", label: "Connections" },
-  { href: "/preferences", label: "Preferences" },
-  { href: "/settings", label: "Settings" },
-];
-
-function withCurrentEmbedParams(
-  href: string,
-  searchParams: ReadonlyURLSearchParams | null,
-  embeddedContext: EmbeddedAppContext,
-) {
-  const params = new URLSearchParams();
-  const shop = searchParams?.get("shop");
-
-  if (shop) params.set("shop", shop);
-  applyEmbeddedAppContextToSearchParams(params, embeddedContext);
-
-  const query = params.toString();
-  return query ? `${href}?${query}` : href;
-}
 
 type AppShellProps = {
   title: string;
@@ -95,17 +64,12 @@ export function AppShell({
   );
   const isEmbedded = isEmbeddedAppContext(embeddedContext);
 
-  const activeHref = useMemo(() => {
-    const match = NAV_ITEMS.find((item) =>
-      pathname === "/" ? false : pathname?.startsWith(item.href),
-    );
-    return match?.href ?? null;
-  }, [pathname]);
+  const activeHref = useMemo(() => resolveActiveAppHref(pathname), [pathname]);
   const embeddedNavItems = useMemo(
     () =>
-      NAV_ITEMS.map((item) => ({
+      APP_NAV_ITEMS.map((item) => ({
         ...item,
-        resolvedHref: withCurrentEmbedParams(item.href, searchParams, embeddedContext),
+        resolvedHref: buildEmbeddedAppHref(item.href, searchParams, embeddedContext),
       })),
     [embeddedContext, searchParams],
   );
@@ -125,7 +89,7 @@ export function AppShell({
               Analytics
             </p>
             <nav className="mt-4 space-y-1">
-              {NAV_ITEMS.map((item) => {
+              {APP_NAV_ITEMS.map((item) => {
                 const isActive = activeHref === item.href;
                 return (
                   <Link
@@ -280,7 +244,7 @@ function MobileNav({ open, onClose, activeHref }: MobileNavProps) {
           </button>
         </div>
         <nav className="mt-6 space-y-1 pl-2 pr-3">
-          {NAV_ITEMS.map((item) => {
+          {APP_NAV_ITEMS.map((item) => {
             const isActive = activeHref === item.href;
             return (
               <Link

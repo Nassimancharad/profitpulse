@@ -4,6 +4,7 @@ import createApp from "@shopify/app-bridge";
 import { getSessionToken } from "@shopify/app-bridge-utils";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
+import { normalizeSafeReturnPath } from "@/lib/embeddedAppContext";
 
 export function SessionBootstrap() {
   const pathname = usePathname();
@@ -60,9 +61,7 @@ export function SessionBootstrap() {
           if (shop) params.set("shop", shop);
           if (host) params.set("host", host);
           if (embedded) params.set("embedded", embedded);
-          const targetPath = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-            ? returnTo
-            : "/dashboard";
+          const targetPath = normalizeSafeReturnPath(returnTo, "/dashboard");
           const target = new URL(targetPath, window.location.origin);
           for (const [key, value] of params.entries()) {
             target.searchParams.set(key, value);

@@ -101,3 +101,11 @@ export function applyEmbeddedAppContextToSearchParams(
     params.set(EMBEDDED_APP_FLAG_PARAM, context.embedded);
   }
 }
+
+export function normalizeSafeReturnPath(value: string | null | undefined, fallback: string) {
+  if (value && value.startsWith("/") && !value.startsWith("//")) {
+    return value;
+  }
+
+  return fallback;
+}

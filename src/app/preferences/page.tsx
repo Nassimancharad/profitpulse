@@ -4,7 +4,7 @@ import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { listActiveStandaloneSessions } from "@/lib/appSessions";
 import { resolveAppPageAuth, type AppPageSearchParams } from "@/lib/appPageAuth";
 import { formatShopLabel } from "@/lib/shopLabel";
-import prisma from "@/lib/prisma";
+import { listAuthorizedShopOptions, resolveActiveShop } from "@/lib/shopPage";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +29,7 @@ export default async function PreferencesPage({ searchParams }: PreferencesPageP
   const { authorizedShops, sessionKind, actorUserId, sessionId } = auth;
   const standaloneSessions =
     sessionKind === "standalone" && actorUserId ? await listActiveStandaloneSessions(actorUserId) : [];
-  const shops = await prisma.shop.findMany({
-    where: { shopDomain: { in: authorizedShops } },
-    select: { id: true, shopDomain: true },
-    orderBy: { installedAt: "desc" },
-  });
+  const shops = await listAuthorizedShopOptions(authorizedShops);
 
   if (!shops.length) {
     return (
@@ -52,10 +48,7 @@ export default async function PreferencesPage({ searchParams }: PreferencesPageP
   }
 
   const selectedDomain = resolvedSearchParams?.shop ?? null;
-  const selectedShop = selectedDomain
-    ? shops.find((candidate) => candidate.shopDomain === selectedDomain) ?? null
-    : null;
-  const activeShop = selectedShop ?? (shops.length === 1 ? shops[0] : null);
+  const activeShop = resolveActiveShop(shops, selectedDomain);
 
   if (!activeShop) {
     return (

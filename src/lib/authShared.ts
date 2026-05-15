@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { ShopRole } from "@prisma/client";
+import { normalizeSafeReturnPath } from "@/lib/embeddedAppContext";
 import { EMAIL_USER_PROVIDER, SHOPIFY_USER_PROVIDER } from "@/lib/userAccounts";
 
 export const APP_SESSION_COOKIE = "pp_session";
@@ -93,8 +94,9 @@ export function resolveUnauthenticatedAppPageDestination(input: {
     if (input.embedded) {
       params.set("embedded", input.embedded);
     }
-    if (input.returnTo && input.returnTo.startsWith("/") && !input.returnTo.startsWith("//")) {
-      params.set("return_to", input.returnTo);
+    const returnTo = normalizeSafeReturnPath(input.returnTo, "");
+    if (returnTo) {
+      params.set("return_to", returnTo);
     }
     params.set("auth", "bootstrap");
 

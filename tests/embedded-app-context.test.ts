@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   applyEmbeddedAppContextToSearchParams,
   isEmbeddedAppContext,
+  normalizeSafeReturnPath,
   resolveCurrentEmbeddedAppContext,
   resolveEmbeddedAppContext,
   resolveEmbeddedAppContextFromSearchParamsObject,
@@ -63,4 +64,11 @@ test("resolveCurrentEmbeddedAppContext prefers current query values over cookies
   assert.equal(context.host, "query-host");
   assert.equal(context.embedded, "1");
   assert.equal(isEmbeddedAppContext(context), true);
+});
+
+test("normalizeSafeReturnPath only allows local paths", () => {
+  assert.equal(normalizeSafeReturnPath("/preferences", "/dashboard"), "/preferences");
+  assert.equal(normalizeSafeReturnPath("//evil.test", "/dashboard"), "/dashboard");
+  assert.equal(normalizeSafeReturnPath("https://evil.test", "/dashboard"), "/dashboard");
+  assert.equal(normalizeSafeReturnPath(null, "/dashboard"), "/dashboard");
 });
