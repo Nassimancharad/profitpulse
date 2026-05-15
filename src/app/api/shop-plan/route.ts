@@ -2,6 +2,7 @@ import { PlanStatus, PlanTier, ShopRole } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { authenticateApiRequest, requireAuthorizedShopRole } from "@/lib/auth";
 import { isMissingPlanColumnError, transitionShopPlanByDomain } from "@/data/plans";
+import { applyEmbeddedAppContextToSearchParams, resolveEmbeddedAppContext } from "@/lib/embeddedAppContext";
 
 type ShopPlanPayload = {
   shop?: string;
@@ -45,6 +46,22 @@ async function parsePayload(request: Request): Promise<ShopPlanPayload> {
     planTier: (form.get("planTier") as string | null) ?? undefined,
     planStatus: (form.get("planStatus") as string | null) ?? undefined,
   };
+}
+
+function resolvePostRedirectParams(request: Request, shopDomain: string, plan: "saved" | "unchanged") {
+  const referer = request.headers.get("referer");
+  const refererUrl = referer ? new URL(referer) : null;
+  const embeddedContext = resolveEmbeddedAppContext({
+    searchParams: refererUrl?.searchParams,
+    cookieHeader: request.headers.get("cookie"),
+  });
+
+  const params = new URLSearchParams({
+    shop: shopDomain,
+    plan,
+  });
+  applyEmbeddedAppContextToSearchParams(params, embeddedContext);
+  return params;
 }
 
 export async function handleShopPlanUpdate(
@@ -116,10 +133,11 @@ export async function handleShopPlanUpdate(
   }
 
   const origin = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") ?? new URL(request.url).origin;
-  const params = new URLSearchParams({
-    shop: result.shopDomain,
-    plan: result.changed ? "saved" : "unchanged",
-  });
+  const params = resolvePostRedirectParams(
+    request,
+    result.shopDomain,
+    result.changed ? "saved" : "unchanged",
+  );
   return NextResponse.redirect(`${origin}/settings?${params.toString()}`, 303);
 }
 

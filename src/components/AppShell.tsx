@@ -5,7 +5,12 @@ import { usePathname, useSearchParams } from "next/navigation";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { isEmbeddedAppContext, resolveEmbeddedAppContext } from "@/lib/embeddedAppContext";
+import {
+  applyEmbeddedAppContextToSearchParams,
+  isEmbeddedAppContext,
+  resolveEmbeddedAppContext,
+  type EmbeddedAppContext,
+} from "@/lib/embeddedAppContext";
 import { PageTopBar } from "./PageTopBar";
 import { SessionBootstrap } from "./SessionBootstrap";
 
@@ -23,15 +28,16 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/settings", label: "Settings" },
 ];
 
-function withCurrentEmbedParams(href: string, searchParams: ReadonlyURLSearchParams | null) {
+function withCurrentEmbedParams(
+  href: string,
+  searchParams: ReadonlyURLSearchParams | null,
+  embeddedContext: EmbeddedAppContext,
+) {
   const params = new URLSearchParams();
   const shop = searchParams?.get("shop");
-  const host = searchParams?.get("host");
-  const embedded = searchParams?.get("embedded");
 
   if (shop) params.set("shop", shop);
-  if (host) params.set("host", host);
-  if (embedded) params.set("embedded", embedded);
+  applyEmbeddedAppContextToSearchParams(params, embeddedContext);
 
   const query = params.toString();
   return query ? `${href}?${query}` : href;
@@ -100,9 +106,9 @@ export function AppShell({
     () =>
       NAV_ITEMS.map((item) => ({
         ...item,
-        resolvedHref: withCurrentEmbedParams(item.href, searchParams),
+        resolvedHref: withCurrentEmbedParams(item.href, searchParams, embeddedContext),
       })),
-    [searchParams],
+    [embeddedContext, searchParams],
   );
 
   return (
