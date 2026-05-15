@@ -4,7 +4,10 @@ import { ShopConnectForm } from "@/components/ShopConnectForm";
 import { ShopSwitcher } from "@/components/ShopSwitcher";
 import { SyncNowButton } from "@/components/SyncNowButton";
 import { getAuthorizedSessionFromCookie } from "@/lib/auth";
+import { canUseFeature } from "@/lib/planGate";
+import { formatPlanLabel, formatPlanStatus } from "@/lib/planPresentation";
 import { formatShopLabel } from "@/lib/shopLabel";
+import { listAuthorizedShopOptions, resolveActiveShop } from "@/lib/shopPage";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -129,11 +132,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
     );
   }
 
-  const shops = await prisma.shop.findMany({
-    where: { shopDomain: { in: authorizedShops } },
-    select: { id: true, shopDomain: true, installedAt: true },
-    orderBy: { installedAt: "desc" },
-  });
+  const shops = await listAuthorizedShopOptions(authorizedShops);
 
   if (!shops.length) {
     return (
@@ -157,10 +156,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
   }
 
   const selectedDomain = resolvedSearchParams?.shop ?? null;
-  const selectedShop = selectedDomain
-    ? shops.find((candidate: { shopDomain: string }) => candidate.shopDomain === selectedDomain) ?? null
-    : null;
-  const activeShop = selectedShop ?? (shops.length === 1 ? shops[0] : null);
+  const activeShop = resolveActiveShop(shops, selectedDomain);
 
   if (!activeShop) {
     return (
@@ -209,6 +205,8 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
       id: true,
       shopDomain: true,
       installedAt: true,
+      planTier: true,
+      planStatus: true,
       metaAdAccounts: {
         select: {
           id: true,
@@ -238,6 +236,16 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
       })
     : "—";
   const canManage = true;
+  const metaConnectionAccess = canUseFeature({
+    planTier: shop.planTier,
+    planStatus: shop.planStatus,
+    feature: "META_CONNECTIONS",
+  });
+  const metaSyncAccess = canUseFeature({
+    planTier: shop.planTier,
+    planStatus: shop.planStatus,
+    feature: "META_SYNC",
+  });
   const shopSelector = (
     <ShopSwitcher
       shops={shops}
@@ -288,17 +296,23 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
               <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--pp-muted)]">Meta Ads</p>
               <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Ad account connections</h3>
               <p className="text-sm text-[color:var(--pp-muted)]">
-                Connect ad accounts to sync daily spend.
+                Connect ad accounts to sync daily spend. Current plan {formatPlanLabel(shop.planTier)} · {formatPlanStatus(shop.planStatus)}.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <a
-                href={`/api/auth/meta/install?shop=${encodeURIComponent(shop.shopDomain)}`}
-                className={`pp-btn pp-btn-primary px-3.5 py-2 text-sm ${!canManage ? "pointer-events-none opacity-60" : ""}`}
-              >
-                {canManage ? "Connect Meta" : "Unavailable"}
-              </a>
-              <MetaSyncButton shopDomain={shop.shopDomain} canManage={canManage} />
+              {canManage && metaConnectionAccess.ok ? (
+                <a
+                  href={`/api/auth/meta/install?shop=${encodeURIComponent(shop.shopDomain)}`}
+                  className="pp-btn pp-btn-primary px-3.5 py-2 text-sm"
+                >
+                  Connect Meta
+                </a>
+              ) : (
+                <span className="pp-btn pp-btn-primary pointer-events-none px-3.5 py-2 text-sm opacity-60">
+                  Unavailable
+                </span>
+              )}
+              <MetaSyncButton shopDomain={shop.shopDomain} canManage={canManage && metaSyncAccess.ok} />
               <form action={`/api/meta/disconnect?shop=${encodeURIComponent(shop.shopDomain)}`} method="POST">
                 <button
                   type="submit"
@@ -310,6 +324,14 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
               </form>
             </div>
           </div>
+
+          {!metaConnectionAccess.ok ? (
+            <div className="glass-inset mt-4 rounded-xl border border-amber-300/60 bg-amber-100/60 px-4 py-3 text-sm text-amber-700">
+              {metaConnectionAccess.reason === "plan_inactive"
+                ? "Meta features are disabled because the subscription is inactive. Reactivate the plan in Settings."
+                : "Meta connections require the Premium plan. Upgrade the store plan in Settings to unlock them."}
+            </div>
+          ) : null}
 
           <div className="mt-4 space-y-2">
             {shop.metaAdAccounts.length ? (

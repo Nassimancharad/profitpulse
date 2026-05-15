@@ -3,18 +3,16 @@ import { OverflowMenu } from '@/components/OverflowMenu';
 import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
+import { canUseFeature } from '@/lib/planGate';
+import { formatPlanLabel, formatPlanStatus } from '@/lib/planPresentation';
 import { formatShopLabel } from '@/lib/shopLabel';
+import { listAuthorizedShopOptions, resolveActiveShop, type AuthorizedShopOption } from '@/lib/shopPage';
 import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 type CostsPageProps = {
   searchParams?: Promise<AppPageSearchParams<{ shop?: string; payments?: string }>>;
-};
-
-type ShopRef = {
-  id: string;
-  shopDomain: string;
 };
 
 type ExpenseRecord = {
@@ -27,11 +25,7 @@ type ExpenseRecord = {
 export default async function CostsPage({ searchParams }: CostsPageProps) {
   const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
   const { authorizedShops } = auth;
-  const shops: ShopRef[] = await prisma.shop.findMany({
-    where: { shopDomain: { in: authorizedShops } },
-    select: { id: true, shopDomain: true },
-    orderBy: { installedAt: 'desc' },
-  });
+  const shops: AuthorizedShopOption[] = await listAuthorizedShopOptions(authorizedShops);
 
   if (!shops.length) {
     return (
@@ -47,10 +41,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
   }
 
   const selectedDomain = resolvedSearchParams?.shop ?? null;
-  const selectedShop = selectedDomain
-    ? shops.find((candidate) => candidate.shopDomain === selectedDomain) ?? null
-    : null;
-  const activeShop = selectedShop ?? (shops.length === 1 ? shops[0] : null);
+  const activeShop = resolveActiveShop(shops, selectedDomain);
 
   if (!activeShop) {
     return (
@@ -84,6 +75,8 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
       shopDomain: true,
       paymentFeePct: true,
       paymentFeeFixed: true,
+      planTier: true,
+      planStatus: true,
     },
   });
 
@@ -122,6 +115,11 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
     />
   );
   const paymentsStatus = resolvedSearchParams?.payments ?? null;
+  const paymentsAccess = canUseFeature({
+    planTier: shop.planTier,
+    planStatus: shop.planStatus,
+    feature: 'SHOPIFY_PAYMENTS_SYNC',
+  });
   const paymentsMessages: Record<string, string> = {
     synced: 'Shopify Payments fees synced successfully.',
     unsupported: 'Shopify Payments is not enabled on this store. Fee sync is unavailable.',
@@ -158,7 +156,7 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
               <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--pp-muted)]">Payments</p>
               <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Processor fees</h3>
               <p className="text-sm text-[color:var(--pp-muted)]">
-                Applied to net revenue after refunds.
+                Applied to net revenue after refunds. Current plan {formatPlanLabel(shop.planTier)} · {formatPlanStatus(shop.planStatus)}.
               </p>
             </div>
           </div>
@@ -201,12 +199,19 @@ export default async function CostsPage({ searchParams }: CostsPageProps) {
           <form className="mt-4" action={`/api/shopify-payments/sync?shop=${encodeURIComponent(shop.shopDomain)}`} method="POST">
             <button
               type="submit"
-              disabled={!canManage}
+              disabled={!canManage || !paymentsAccess.ok}
               className="pp-btn pp-btn-secondary glass-inset px-4 py-2 text-xs"
             >
-              {canManage ? "Sync Shopify Payments fees" : "Unavailable"}
+              {canManage && paymentsAccess.ok ? "Sync Shopify Payments fees" : "Unavailable"}
             </button>
           </form>
+          {!paymentsAccess.ok ? (
+            <div className="glass-inset mt-3 rounded-xl border border-amber-300/60 bg-amber-100/60 px-4 py-3 text-xs text-amber-700">
+              {paymentsAccess.reason === 'plan_inactive'
+                ? 'Shopify Payments sync is disabled because the subscription is inactive. Reactivate the plan in Settings.'
+                : 'Shopify Payments sync requires the Standard plan or above. Upgrade the store plan in Settings to unlock it.'}
+            </div>
+          ) : null}
           {paymentsStatus ? (
             <div className="glass-inset mt-3 rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-xs text-[color:var(--pp-muted)]">
               {paymentsMessages[paymentsStatus] ?? 'Shopify Payments sync failed. Please retry after confirming access.'}

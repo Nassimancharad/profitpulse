@@ -6,23 +6,22 @@ import { SyncNowButton } from '@/components/SyncNowButton';
 import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { TeamInvitesPanel } from '@/components/TeamInvitesPanel';
 import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
+import { canUseFeature } from '@/lib/planGate';
+import { PLAN_STATUS_OPTIONS, PLAN_TIER_OPTIONS, formatPlanLabel, formatPlanStatus } from '@/lib/planPresentation';
 import { formatShopLabel } from '@/lib/shopLabel';
+import { listAuthorizedShopOptions, resolveActiveShop } from '@/lib/shopPage';
 import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 type SettingsPageProps = {
-  searchParams?: Promise<AppPageSearchParams<{ shop?: string }>>;
+  searchParams?: Promise<AppPageSearchParams<{ shop?: string; plan?: string }>>;
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
   const { authorizedShops } = auth;
-  const shops = await prisma.shop.findMany({
-    where: { shopDomain: { in: authorizedShops } },
-    select: { id: true, shopDomain: true },
-    orderBy: { installedAt: 'desc' },
-  });
+  const shops = await listAuthorizedShopOptions(authorizedShops);
 
   if (!shops.length) {
     return (
@@ -39,10 +38,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   }
 
   const selectedDomain = resolvedSearchParams?.shop ?? null;
-  const selectedShop = selectedDomain
-    ? shops.find((candidate) => candidate.shopDomain === selectedDomain) ?? null
-    : null;
-  const activeShop = selectedShop ?? (shops.length === 1 ? shops[0] : null);
+  const activeShop = resolveActiveShop(shops, selectedDomain);
 
   if (!activeShop) {
     return (
@@ -75,6 +71,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       id: true,
       shopDomain: true,
       installedAt: true,
+      planTier: true,
+      planStatus: true,
+      planUpdatedAt: true,
     },
   });
 
@@ -129,6 +128,37 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         year: 'numeric',
       })
     : '—';
+  const planUpdatedAt = new Date(shop.planUpdatedAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const planStatus = resolvedSearchParams?.plan ?? null;
+  const featureRows = [
+    {
+      label: 'Shopify data sync',
+      detail: 'Included with every plan.',
+      enabled: true,
+    },
+    {
+      label: 'Shopify Payments fee sync',
+      detail: 'Requires Standard or Premium.',
+      enabled: canUseFeature({
+        planTier: shop.planTier,
+        planStatus: shop.planStatus,
+        feature: 'SHOPIFY_PAYMENTS_SYNC',
+      }).ok,
+    },
+    {
+      label: 'Meta connections, sync, and campaign mapping',
+      detail: 'Requires Premium.',
+      enabled: canUseFeature({
+        planTier: shop.planTier,
+        planStatus: shop.planStatus,
+        feature: 'META_CONNECTIONS',
+      }).ok,
+    },
+  ];
 
   return (
     <AppShell
@@ -139,6 +169,16 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       overflowActions={overflowActions}
     >
       <div>
+        {planStatus ? (
+          <div className="glass-inset mb-8 rounded-2xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-sm text-[color:var(--pp-muted)]">
+            {planStatus === 'saved'
+              ? 'Plan updated successfully.'
+              : planStatus === 'unchanged'
+                ? 'Plan already matched the requested state.'
+                : 'Plan update completed.'}
+          </div>
+        ) : null}
+
         <section className="pp-card glass-surface p-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -149,6 +189,75 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             <div className="flex flex-wrap items-center gap-3">
               <SyncNowButton shopDomain={shop.shopDomain} canManage={canManage} />
             </div>
+          </div>
+        </section>
+
+        <section className="pp-card glass-surface mt-8 p-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.25em] text-[color:var(--pp-muted)]">Plan</p>
+              <h3 className="text-lg font-semibold text-[color:var(--pp-foreground)]">Subscription access</h3>
+              <p className="text-sm text-[color:var(--pp-muted)]">
+                Current plan {shop.planTier.toLowerCase()} · {shop.planStatus.toLowerCase().replace('_', ' ')} · Updated {planUpdatedAt}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {PLAN_TIER_OPTIONS.map((tier) => (
+              <form key={tier} action="/api/shop-plan" method="POST">
+                <input type="hidden" name="shop" value={shop.shopDomain} />
+                <input type="hidden" name="planTier" value={tier} />
+                <button
+                  type="submit"
+                  disabled={shop.planTier === tier}
+                  className={`pp-btn px-3.5 py-2 text-sm ${
+                    shop.planTier === tier
+                      ? 'border-[color:rgba(242,122,40,0.28)] bg-[rgba(242,122,40,0.12)] text-[color:var(--pp-foreground)]'
+                      : 'pp-btn-secondary glass-inset'
+                  }`}
+                >
+                  {tier === shop.planTier ? `${formatPlanLabel(tier)} current` : `Switch to ${formatPlanLabel(tier)}`}
+                </button>
+              </form>
+            ))}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {PLAN_STATUS_OPTIONS.map((status) => (
+              <form key={status} action="/api/shop-plan" method="POST">
+                <input type="hidden" name="shop" value={shop.shopDomain} />
+                <input type="hidden" name="planStatus" value={status} />
+                <button
+                  type="submit"
+                  disabled={shop.planStatus === status}
+                  className={`pp-btn px-3.5 py-2 text-sm ${
+                    shop.planStatus === status
+                      ? 'border-[color:rgba(242,122,40,0.28)] bg-[rgba(242,122,40,0.12)] text-[color:var(--pp-foreground)]'
+                      : 'pp-btn-secondary glass-inset'
+                  }`}
+                >
+                  {shop.planStatus === status ? `${formatPlanStatus(status)} current` : formatPlanStatus(status)}
+                </button>
+              </form>
+            ))}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {featureRows.map((feature) => (
+              <div
+                key={feature.label}
+                className="flex items-start justify-between rounded-xl border border-[color:var(--pp-border)] bg-white/60 px-4 py-3 text-sm"
+              >
+                <div>
+                  <div className="font-semibold text-[color:var(--pp-foreground)]">{feature.label}</div>
+                  <div className="text-[color:var(--pp-muted)]">{feature.detail}</div>
+                </div>
+                <span className={`text-xs font-semibold uppercase tracking-wide ${feature.enabled ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {feature.enabled ? 'Enabled' : 'Locked'}
+                </span>
+              </div>
+            ))}
           </div>
         </section>
 
