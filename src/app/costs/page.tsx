@@ -24,7 +24,9 @@ type ExpenseRecord = {
 };
 
 export default async function CostsPage({ searchParams }: CostsPageProps) {
-  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
+    returnTo: "/costs",
+  });
   const { authorizedShops } = auth;
   const shops: AuthorizedShopOption[] = await listAuthorizedShopOptions(authorizedShops);
 

@@ -20,7 +20,9 @@ type SettingsPageProps = {
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
+    returnTo: "/settings",
+  });
   const { authorizedShops } = auth;
   const shops = await listAuthorizedShopOptions(authorizedShops);
 

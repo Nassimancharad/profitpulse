@@ -11,7 +11,7 @@ export function SessionBootstrap() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (pathname !== "/connections") {
+    if (pathname !== "/connections" || searchParams.get("auth") !== "bootstrap") {
       return;
     }
 
@@ -26,6 +26,7 @@ export function SessionBootstrap() {
     }
     const shop = searchParams.get("shop");
     const embedded = searchParams.get("embedded");
+    const returnTo = searchParams.get("return_to");
 
     let cancelled = false;
 
@@ -59,13 +60,18 @@ export function SessionBootstrap() {
           if (shop) params.set("shop", shop);
           if (host) params.set("host", host);
           if (embedded) params.set("embedded", embedded);
-          const query = params.toString();
-          router.replace(query ? `/dashboard?${query}` : "/dashboard");
+          const targetPath = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+            ? returnTo
+            : "/dashboard";
+          const target = new URL(targetPath, window.location.origin);
+          for (const [key, value] of params.entries()) {
+            target.searchParams.set(key, value);
+          }
+          router.replace(`${target.pathname}${target.search}`);
         }
       } catch (error) {
         // Avoid hard failures in mixed embedded/non-embedded contexts.
         if (process.env.NODE_ENV !== "production") {
-          // eslint-disable-next-line no-console
           console.error("Session bootstrap failed", error);
         }
       }

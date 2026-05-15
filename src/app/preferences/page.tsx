@@ -23,7 +23,9 @@ function formatDeviceLabel(userAgent: string | null) {
 }
 
 export default async function PreferencesPage({ searchParams }: PreferencesPageProps) {
-  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
+    returnTo: "/preferences",
+  });
   const { authorizedShops, sessionKind, actorUserId, sessionId } = auth;
   const standaloneSessions =
     sessionKind === "standalone" && actorUserId ? await listActiveStandaloneSessions(actorUserId) : [];

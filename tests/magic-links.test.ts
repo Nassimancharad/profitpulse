@@ -47,9 +47,30 @@ test("resolveUnauthenticatedAppPageDestination keeps embedded requests on connec
       host: "shopify-host",
       shop: "demo.myshopify.com",
     }),
-    "/connections?shop=demo.myshopify.com&host=shopify-host&embedded=1",
+    "/connections?shop=demo.myshopify.com&host=shopify-host&embedded=1&auth=bootstrap",
   );
   assert.equal(resolveUnauthenticatedAppPageDestination({ embedded: null, host: null }), "/login");
+});
+
+test("resolveUnauthenticatedAppPageDestination preserves safe embedded return paths", () => {
+  assert.equal(
+    resolveUnauthenticatedAppPageDestination({
+      embedded: "1",
+      host: "shopify-host",
+      shop: "demo.myshopify.com",
+      returnTo: "/preferences",
+    }),
+    "/connections?shop=demo.myshopify.com&host=shopify-host&embedded=1&return_to=%2Fpreferences&auth=bootstrap",
+  );
+
+  assert.equal(
+    resolveUnauthenticatedAppPageDestination({
+      embedded: "1",
+      host: "shopify-host",
+      returnTo: "https://example.com/login",
+    }),
+    "/connections?host=shopify-host&embedded=1&auth=bootstrap",
+  );
 });
 
 test("resolveMagicLinkUser provisions an email login from existing shopify memberships", async () => {

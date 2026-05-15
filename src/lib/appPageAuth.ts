@@ -11,9 +11,13 @@ export type AppPageSearchParamInput<T extends Record<string, string | undefined>
 
 export async function resolveAppPageAuth<T extends Record<string, string | undefined> = Record<string, never>>(
   searchParams?: AppPageSearchParamInput<T>,
+  options?: { returnTo?: string | null },
 ) {
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const auth = await requireAppPageAuth({ searchParams: resolvedSearchParams });
+  const auth = await requireAppPageAuth({
+    searchParams: resolvedSearchParams,
+    returnTo: options?.returnTo,
+  });
 
   return {
     auth,

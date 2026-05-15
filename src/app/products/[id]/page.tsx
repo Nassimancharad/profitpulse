@@ -20,9 +20,11 @@ type PageProps = {
 };
 
 export default async function ProductDetailPage({ params, searchParams }: PageProps) {
-  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
-  const { authorizedShopSet } = auth;
   const { id: productId } = await params;
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
+    returnTo: `/products/${productId}`,
+  });
+  const { authorizedShopSet } = auth;
 
   if (!productId) {
     notFound();

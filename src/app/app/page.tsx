@@ -7,7 +7,9 @@ type AppPageProps = {
 };
 
 export default async function AppPage({ searchParams }: AppPageProps) {
-  const { searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
+    returnTo: "/app",
+  });
   const shop = resolvedSearchParams?.shop || "unknown-shop";
 
   return (

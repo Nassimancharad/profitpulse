@@ -23,7 +23,9 @@ type ShopOverview = {
 };
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
+    returnTo: "/products",
+  });
   const { authorizedShops } = auth;
   const shops: ShopOverview[] = await (async () => {
     try {

@@ -32,11 +32,13 @@ export default async function Home({ searchParams }: HomePageProps) {
       }
     }
 
-    const query = nextParams.toString();
     if (hasIdToken) {
+      const query = nextParams.toString();
       redirect(query ? `/api/auth/shopify/embedded-entry?${query}` : "/api/auth/shopify/embedded-entry");
     }
 
+    nextParams.set("auth", "bootstrap");
+    const query = nextParams.toString();
     redirect(query ? `/connections?${query}` : "/connections");
   }
 

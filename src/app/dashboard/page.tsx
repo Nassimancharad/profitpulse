@@ -51,7 +51,9 @@ type DashboardProps = {
 };
 
 export default async function DashboardPage({ searchParams }: DashboardProps) {
-  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams);
+  const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
+    returnTo: "/dashboard",
+  });
   const { authorizedShops } = auth;
   const shops: ShopOverview[] = await fetchDashboardShops(authorizedShops);
 

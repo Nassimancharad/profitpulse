@@ -75,7 +75,6 @@ export function AppShell({
   title,
   subtitle,
   periodLabel = "Last 30 days",
-  shopLabel = "Demo shop",
   timeControl,
   secondaryActions,
   actions,

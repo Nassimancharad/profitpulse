@@ -94,7 +94,7 @@ export default async function ConnectionsPage({ searchParams }: ConnectionsPageP
     resolvedSearchParams?.embedded === "1" &&
     typeof resolvedSearchParams.host === "string" &&
     resolvedSearchParams.host.length > 0 &&
-    resolvedSearchParams.auth !== "required";
+    resolvedSearchParams.auth === "bootstrap";
   const banner = mapStatus(
     resolvedSearchParams?.shopify,
     resolvedSearchParams?.meta,

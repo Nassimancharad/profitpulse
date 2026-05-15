@@ -231,6 +231,7 @@ type AppPageAuthSearchParams =
 
 export async function requireAppPageAuth(input?: {
   searchParams?: AppPageAuthSearchParams;
+  returnTo?: string | null;
 }) {
   const session = await getAuthorizedSessionFromCookie();
   const authorizedShops = session.shops;
@@ -252,6 +253,7 @@ export async function requireAppPageAuth(input?: {
           typeof resolvedSearchParams?.shop === "string" && resolvedSearchParams.shop.length > 0
             ? resolvedSearchParams.shop
             : null,
+        returnTo: input?.returnTo,
       }),
     );
   }

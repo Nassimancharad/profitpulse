@@ -80,6 +80,7 @@ export function resolveUnauthenticatedAppPageDestination(input: {
   embedded?: string | null;
   host?: string | null;
   shop?: string | null;
+  returnTo?: string | null;
 }) {
   if (input.embedded === "1" || Boolean(input.host)) {
     const params = new URLSearchParams();
@@ -92,6 +93,10 @@ export function resolveUnauthenticatedAppPageDestination(input: {
     if (input.embedded) {
       params.set("embedded", input.embedded);
     }
+    if (input.returnTo && input.returnTo.startsWith("/") && !input.returnTo.startsWith("//")) {
+      params.set("return_to", input.returnTo);
+    }
+    params.set("auth", "bootstrap");
 
     const query = params.toString();
     return query ? `/connections?${query}` : "/connections";
