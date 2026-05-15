@@ -15,6 +15,32 @@ function buildRequest(body: Record<string, string>, acceptJson = true) {
   });
 }
 
+function buildFormRequest(body: Record<string, string>) {
+  return new Request("https://app.example.com/api/shop-plan", {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(body),
+  });
+}
+
+function buildAdminAuth() {
+  return {
+    ok: true as const,
+    kind: "shopify" as const,
+    provider: "shopify" as const,
+    sessionId: null,
+    actorUserId: null,
+    actorExternalId: "user_1",
+    shops: ["demo.myshopify.com"],
+    rolesByShop: { "demo.myshopify.com": "ADMIN" as const },
+    authorizedShops: new Set(["demo.myshopify.com"]),
+    shopRoles: new Map([["demo.myshopify.com", "ADMIN" as const]]),
+    source: "cookie" as const,
+  };
+}
+
 test("handleShopPlanUpdate returns auth response when unauthenticated", async () => {
   const response = await handleShopPlanUpdate(buildRequest({ shop: "demo.myshopify.com", planTier: "STANDARD" }), {
     authenticate: async () => ({
@@ -31,19 +57,7 @@ test("handleShopPlanUpdate returns auth response when unauthenticated", async ()
 
 test("handleShopPlanUpdate validates plan payload", async () => {
   const response = await handleShopPlanUpdate(buildRequest({ shop: "demo.myshopify.com", planTier: "INVALID" }), {
-    authenticate: async () => ({
-      ok: true as const,
-      kind: "shopify" as const,
-      provider: "shopify" as const,
-      sessionId: null,
-      actorUserId: null,
-      actorExternalId: "user_1",
-      shops: ["demo.myshopify.com"],
-      rolesByShop: { "demo.myshopify.com": "ADMIN" as const },
-      authorizedShops: new Set(["demo.myshopify.com"]),
-      shopRoles: new Map([["demo.myshopify.com", "ADMIN" as const]]),
-      source: "cookie" as const,
-    }),
+    authenticate: async () => buildAdminAuth(),
     transitionPlan: async () => {
       throw new Error("should not be called");
     },
@@ -55,19 +69,7 @@ test("handleShopPlanUpdate validates plan payload", async () => {
 test("handleShopPlanUpdate returns updated plan payload", async () => {
   let called = false;
   const response = await handleShopPlanUpdate(buildRequest({ shop: "demo.myshopify.com", planTier: "PREMIUM" }), {
-    authenticate: async () => ({
-      ok: true as const,
-      kind: "shopify" as const,
-      provider: "shopify" as const,
-      sessionId: null,
-      actorUserId: null,
-      actorExternalId: "user_1",
-      shops: ["demo.myshopify.com"],
-      rolesByShop: { "demo.myshopify.com": "ADMIN" as const },
-      authorizedShops: new Set(["demo.myshopify.com"]),
-      shopRoles: new Map([["demo.myshopify.com", "ADMIN" as const]]),
-      source: "cookie" as const,
-    }),
+    authenticate: async () => buildAdminAuth(),
     transitionPlan: async () => {
       called = true;
       return {
@@ -88,4 +90,33 @@ test("handleShopPlanUpdate returns updated plan payload", async () => {
   assert.equal(payload.ok, true);
   assert.equal(payload.direction, "upgrade");
   assert.equal(payload.planTier, PlanTier.PREMIUM);
+});
+
+test("handleShopPlanUpdate preserves submitted embedded context on form redirects", async () => {
+  const response = await handleShopPlanUpdate(
+    buildFormRequest({
+      shop: "demo.myshopify.com",
+      planTier: "PREMIUM",
+      host: "shopify-host",
+      embedded: "1",
+    }),
+    {
+      authenticate: async () => buildAdminAuth(),
+      transitionPlan: async () => ({
+        id: "shop_1",
+        shopDomain: "demo.myshopify.com",
+        planTier: PlanTier.PREMIUM,
+        planStatus: PlanStatus.ACTIVE,
+        planUpdatedAt: new Date("2026-04-21T10:00:00.000Z"),
+        direction: "upgrade" as const,
+        changed: true,
+      }),
+    },
+  );
+
+  assert.equal(response.status, 303);
+  assert.equal(
+    response.headers.get("location"),
+    "https://app.example.com/settings?shop=demo.myshopify.com&plan=saved&host=shopify-host&embedded=1",
+  );
 });

@@ -12,6 +12,7 @@ function buildCookiePolicy(request: NextRequest) {
   return {
     secure,
     sameSite: secure ? ("none" as const) : ("lax" as const),
+    partitioned: secure,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   };

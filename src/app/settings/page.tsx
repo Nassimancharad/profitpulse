@@ -1,5 +1,6 @@
 import { AppShell } from '@/components/AppShell';
 import { ShopInviteStatus } from "@prisma/client";
+import { cookies } from "next/headers";
 import { OverflowMenu } from '@/components/OverflowMenu';
 import { ShopConnectForm } from '@/components/ShopConnectForm';
 import { SyncNowButton } from '@/components/SyncNowButton';
@@ -7,6 +8,7 @@ import { ShopSwitcher } from '@/components/ShopSwitcher';
 import { TeamInvitesPanel } from '@/components/TeamInvitesPanel';
 import { resolveAppPageAuth, type AppPageSearchParams } from '@/lib/appPageAuth';
 import { getShopPlanByDomain } from '@/data/plans';
+import { resolveCurrentEmbeddedAppContext, type EmbeddedAppContext } from '@/lib/embeddedAppContext';
 import { canUseFeature } from '@/lib/planGate';
 import { PLAN_STATUS_OPTIONS, PLAN_TIER_OPTIONS, formatPlanLabel, formatPlanStatus } from '@/lib/planPresentation';
 import { formatShopLabel } from '@/lib/shopLabel';
@@ -22,6 +24,14 @@ type SettingsPageProps = {
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const { auth, searchParams: resolvedSearchParams } = await resolveAppPageAuth(searchParams, {
     returnTo: "/settings",
+  });
+  const cookieStore = await cookies();
+  const embeddedContext = resolveCurrentEmbeddedAppContext({
+    searchParams: resolvedSearchParams,
+    cookieHeader: cookieStore
+      .getAll()
+      .map((cookie) => `${cookie.name}=${cookie.value}`)
+      .join("; "),
   });
   const { authorizedShops } = auth;
   const shops = await listAuthorizedShopOptions(authorizedShops);
@@ -214,6 +224,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             {PLAN_TIER_OPTIONS.map((tier) => (
               <form key={tier} action="/api/shop-plan" method="POST">
                 <input type="hidden" name="shop" value={shop.shopDomain} />
+                <EmbeddedContextInputs context={embeddedContext} />
                 <input type="hidden" name="planTier" value={tier} />
                 <button
                   type="submit"
@@ -234,6 +245,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             {PLAN_STATUS_OPTIONS.map((status) => (
               <form key={status} action="/api/shop-plan" method="POST">
                 <input type="hidden" name="shop" value={shop.shopDomain} />
+                <EmbeddedContextInputs context={embeddedContext} />
                 <input type="hidden" name="planStatus" value={status} />
                 <button
                   type="submit"
@@ -292,5 +304,14 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
       </div>
     </AppShell>
+  );
+}
+
+function EmbeddedContextInputs({ context }: { context: EmbeddedAppContext }) {
+  return (
+    <>
+      {context.host ? <input type="hidden" name="host" value={context.host} /> : null}
+      {context.embedded ? <input type="hidden" name="embedded" value={context.embedded} /> : null}
+    </>
   );
 }

@@ -6,6 +6,8 @@ import { applyEmbeddedAppContextToSearchParams, resolveEmbeddedAppContext } from
 
 type ShopPlanPayload = {
   shop?: string;
+  host?: string | null;
+  embedded?: string | null;
   planTier?: string | null;
   planStatus?: string | null;
 };
@@ -43,24 +45,38 @@ async function parsePayload(request: Request): Promise<ShopPlanPayload> {
   const form = await request.formData();
   return {
     shop: (form.get("shop") as string | null) ?? undefined,
+    host: (form.get("host") as string | null) ?? undefined,
+    embedded: (form.get("embedded") as string | null) ?? undefined,
     planTier: (form.get("planTier") as string | null) ?? undefined,
     planStatus: (form.get("planStatus") as string | null) ?? undefined,
   };
 }
 
-function resolvePostRedirectParams(request: Request, shopDomain: string, plan: "saved" | "unchanged") {
+function resolvePostRedirectParams(
+  request: Request,
+  payload: ShopPlanPayload,
+  shopDomain: string,
+  plan: "saved" | "unchanged",
+) {
   const referer = request.headers.get("referer");
   const refererUrl = referer ? new URL(referer) : null;
   const embeddedContext = resolveEmbeddedAppContext({
     searchParams: refererUrl?.searchParams,
     cookieHeader: request.headers.get("cookie"),
   });
+  const submittedEmbeddedContext = {
+    host: typeof payload.host === "string" && payload.host.length > 0 ? payload.host : null,
+    embedded: typeof payload.embedded === "string" && payload.embedded.length > 0 ? payload.embedded : null,
+  };
 
   const params = new URLSearchParams({
     shop: shopDomain,
     plan,
   });
-  applyEmbeddedAppContextToSearchParams(params, embeddedContext);
+  applyEmbeddedAppContextToSearchParams(params, {
+    host: submittedEmbeddedContext.host ?? embeddedContext.host,
+    embedded: submittedEmbeddedContext.embedded ?? embeddedContext.embedded,
+  });
   return params;
 }
 
@@ -135,6 +151,7 @@ export async function handleShopPlanUpdate(
   const origin = process.env.SHOPIFY_APP_URL?.replace(/\/+$/, "") ?? new URL(request.url).origin;
   const params = resolvePostRedirectParams(
     request,
+    payload,
     result.shopDomain,
     result.changed ? "saved" : "unchanged",
   );
